@@ -1,0 +1,1148 @@
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Bell, ShieldAlert, X, Radio } from 'lucide-react';
+
+// Types
+import { 
+  User, 
+  Group, 
+  Mission, 
+  MissionSubmission, 
+  Training, 
+  Medal, 
+  UserMedal, 
+  SupportTicket, 
+  SupportReply, 
+  Announcement, 
+  News,
+  AppNotification,
+  GamePortal,
+  PasswordResetRequest
+} from './types';
+
+// Mock Data
+import { 
+  initialUsers, 
+  initialGroups, 
+  initialMissions, 
+  initialSubmissions, 
+  initialTrainings, 
+  initialMedals, 
+  initialUserMedals, 
+  initialSupportTickets, 
+  initialSupportReplies, 
+  initialAnnouncements, 
+  initialNews,
+  initialNotifications 
+} from './data';
+
+import {
+  initialHomeAnnouncements, 
+  homeStatsData, 
+  faqsData, 
+  defaultHomeButtons,
+  defaultHomeBlocks,
+  HomeAnnouncement, 
+  HomeStats, 
+  FaqItem 
+} from './data/home';
+
+// Supabase Data Sync Layer (falls back to localStorage automatically)
+import {
+  useSyncedCollection,
+  useSyncedSetting,
+  persistSavedPostsToDb,
+  loadSavedPostsFromDb
+} from './lib/supabaseData';
+import { checkSupabaseHealth } from './lib/supabaseClient';
+// 🛡️ لایه ارتباط امن با بک‌اند (احراز هویت، رمز عبور، درخواست‌های تغییر رمز)
+import { probeBackend, apiLogout, apiSession, getBackendStatus, subscribeBackendStatus } from './lib/backendApi';
+import ForcePasswordChangeModal from './components/ForcePasswordChangeModal';
+
+// Vitrin (Showcase) data layer
+import {
+  VitrinPost,
+  VitrinComment,
+  getVitrinPostsFromStore,
+  getAllVitrinComments
+} from './data/vitrinData';
+import { DEFAULT_GAME_PORTALS } from './data/portalData';
+
+// Static Base Views
+import HomeView from './components/HomeView';
+import Navbar from './components/Navbar';
+import BottomNavigation from './components/home/BottomNavigation';
+import AuthView from './components/AuthView';
+import LoadingScreen from './components/LoadingScreen';
+import BackgroundMusic from './components/BackgroundMusic';
+import PersistentMusicBar from './components/PersistentMusicBar';
+
+// Core Views - Imported directly for zero-latency, instant tab switching
+import DashboardView from './components/DashboardView';
+import JourneyView from './components/JourneyView';
+import MissionsView from './components/MissionsView';
+import TrainingsView from './components/TrainingsView';
+import SupportView from './components/SupportView';
+import ContactView from './components/ContactView';
+import AboutView from './components/AboutView';
+import ProfileView from './components/ProfileView';
+import PrizesPointsView from './components/PrizesPointsView';
+import VitrinView from './components/VitrinView';
+import SquadManagementModal from './components/SquadManagementModal';
+import ProfileModal from './components/ProfileModal';
+import GameSelectionPortalModal from './components/GameSelectionPortalModal';
+import NotificationCenterModal from './components/NotificationCenterModal';
+import LiveNotificationToast from './components/LiveNotificationToast';
+import OnboardingCommanderTutorial from './components/OnboardingCommanderTutorial';
+
+// Only AdminPanel kept lazy as an internal administrative tool
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+
+const ViewFallback = () => (
+  <div className="w-full min-h-[160px] py-6 flex items-center justify-center text-center text-slate-400 font-sans dir-rtl">
+    <div className="flex items-center gap-2 text-xs text-emerald-400">
+      <Radio size={16} className="animate-pulse text-emerald-400" />
+      <span>در حال آماده‌سازی...</span>
+    </div>
+  </div>
+);
+
+export default function App() {
+  // ============================================================================
+  // Global Data State — کاملاً همگام با Supabase
+  // هر مجموعه‌ای که از useSyncedCollection ساخته می‌شود، پس از بارگذاری
+  // اولیه از دیتابیس، هر تغییر آن را به‌صورت خودکار (Upsert/Delete)
+  // در جدول متناظر Supabase ذخیره می‌کند. در نبود Supabase، localStorage
+  // به‌عنوان منبع ذخیره‌سازی استفاده می‌شود (بدون تغییر رفتار قبلی).
+  // ============================================================================
+  const [users, setUsers] = useSyncedCollection<User>({
+    table: 'warroom_users',
+    initial: []
+  });
+
+  const [groups, setGroups] = useSyncedCollection<Group>({
+    storageKey: 'warroom_groups',
+    table: 'warroom_groups',
+    initial: initialGroups
+  });
+
+  const [missions, setMissions] = useSyncedCollection<Mission>({
+    storageKey: 'warroom_missions',
+    table: 'warroom_missions',
+    initial: initialMissions
+  });
+
+  const [submissions, setSubmissions] = useSyncedCollection<MissionSubmission>({
+    storageKey: 'warroom_submissions',
+    table: 'warroom_submissions',
+    initial: initialSubmissions
+  });
+
+  const [trainings, setTrainings] = useSyncedCollection<Training>({
+    storageKey: 'warroom_trainings',
+    table: 'warroom_trainings',
+    initial: initialTrainings
+  });
+
+  const [medals, setMedals] = useSyncedCollection<Medal>({
+    storageKey: 'warroom_medals',
+    table: 'warroom_medals',
+    initial: initialMedals
+  });
+
+  const [userMedals, setUserMedals] = useSyncedCollection<UserMedal>({
+    storageKey: 'warroom_user_medals',
+    table: 'warroom_user_medals',
+    initial: initialUserMedals
+  });
+
+  const [tickets, setTickets] = useSyncedCollection<SupportTicket>({
+    storageKey: 'warroom_tickets',
+    table: 'warroom_support_tickets',
+    initial: initialSupportTickets
+  });
+
+  const [replies, setReplies] = useSyncedCollection<SupportReply>({
+    storageKey: 'warroom_replies',
+    table: 'warroom_support_replies',
+    initial: initialSupportReplies
+  });
+
+  const [announcements, setAnnouncements] = useSyncedCollection<Announcement>({
+    storageKey: 'warroom_announcements',
+    table: 'warroom_announcements',
+    initial: initialAnnouncements
+  });
+
+  const [news, setNews] = useSyncedCollection<News>({
+    storageKey: 'warroom_news',
+    table: 'warroom_news',
+    initial: initialNews
+  });
+
+  const [notifications, setNotifications] = useSyncedCollection<AppNotification>({
+    storageKey: 'warroom_notifications',
+    table: 'warroom_notifications',
+    initial: initialNotifications
+  });
+
+  const [showNotificationCenter, setShowNotificationCenter] = useState<boolean>(false);
+  const [liveToastNotification, setLiveToastNotification] = useState<AppNotification | null>(null);
+
+  // Dynamic CMS States (synced with Supabase when configured)
+  const [siteSettings, setSiteSettings] = useSyncedSetting<Record<string, any>>({
+    storageKey: 'warroom_site_settings',
+    settingKey: 'site_settings',
+    initial: () => ({
+      siteName: 'اتاق جنگ',
+      siteTagline: 'سامانه جامع مسابقات، مأموریت‌ها و ارزیابی هوشمند',
+      badgeText: 'پرونده ماجراجویی هفت‌خوان',
+      heroTitle: 'مأموریت اصلی: مسابقه بزرگ اتاق جنگ',
+      heroProgress: '۷۲٪',
+      heroCountdown: '۰۲:۱۴:۳۹:۱۵',
+      heroImage: '',
+      heroVideoUrl: '',
+      girlsBannerImage: '',
+      boysBannerImage: '',
+      heroButtonText: 'ورود و ثبت‌نام',
+      contactPhone: '۰۲۱-۸۸۹۹۷۷۶۶',
+      contactEmail: 'info@warroom.ir',
+      telegram: 'WarRoom_Support',
+      baleLink: 'https://bale.ai/warroom',
+      eitaaLink: 'https://eitaa.com/warroom',
+      address: 'تهران، بزرگراه شهید همت، ستاد مرکزی قرارگاه فضای مجازی',
+      aboutText: 'پلتفرم اتاق جنگ یک سامانه تعاملی، رقابتی و آموزشی است که با هدف پرورش تفکر استراتژیک، افزایش توان تحلیل مسئله و تقویت روحیه کار تیمی در میان نوجوانان و جوانان طراحی شده است.',
+      prizeTitle: 'جایزه‌ها و هدایای مسابقه بزرگ',
+      prizeDescription: 'کریستال جمع کن و جایزه‌های نفیس اعم از کنسول بازی، تبلت و گوشی برنده شو!',
+      homeButtons: defaultHomeButtons,
+      homeBlocks: defaultHomeBlocks
+    })
+  });
+
+  const [homeAnnouncements, setHomeAnnouncements] = useSyncedCollection<HomeAnnouncement>({
+    storageKey: 'warroom_home_announcements',
+    table: 'warroom_home_announcements',
+    initial: initialHomeAnnouncements
+  });
+
+  const [homeStats, setHomeStats] = useSyncedSetting<HomeStats>({
+    storageKey: 'warroom_home_stats',
+    settingKey: 'home_stats',
+    initial: () => homeStatsData
+  });
+
+  const [faqs, setFaqs] = useSyncedCollection<FaqItem>({
+    storageKey: 'warroom_faqs',
+    table: 'warroom_faqs',
+    initial: faqsData
+  });
+
+  // 🆕 🎖️ ویترین آثار (Showcase) — همگام با Supabase
+  // پست‌ها از طریق تب «ویترین آثار» در پنل مدیریت یا تأیید آثار رزمندگان ساخته می‌شوند
+  const [vitrinPosts, setVitrinPosts] = useSyncedCollection<VitrinPost>({
+    storageKey: 'warroom_vitrin_custom_posts',
+    table: 'warroom_vitrin_posts',
+    initial: getVitrinPostsFromStore()
+  });
+
+  // 🆕 نظرات و دیدگاه‌های ویترین — هر ردیف یک نظر (همگام با Supabase)
+  const [vitrinComments, setVitrinComments] = useSyncedCollection<VitrinComment>({
+    storageKey: 'warroom_vitrin_comments',
+    table: 'warroom_vitrin_comments',
+    initial: getAllVitrinComments()
+  });
+
+  // 🆕 درگاه‌های بازی / لینک‌دهی — همگام با Supabase
+  const [gamePortals, setGamePortals] = useSyncedCollection<GamePortal>({
+    storageKey: 'warroom_game_portals_list',
+    table: 'warroom_game_portals',
+    initial: DEFAULT_GAME_PORTALS
+  });
+
+  // 🛡️ درخواست‌های تغییر رمز عبور (حالت محلی) — در حالت بک‌اند، سرور مرجع است
+  const [passwordResetRequests, setPasswordResetRequests] = useSyncedCollection<PasswordResetRequest>({
+    storageKey: 'warroom_password_reset_requests',
+    table: 'warroom_password_reset_requests',
+    initial: []
+  });
+
+  // نقشه‌ی نظرات بر اساس پست (برای مصرف در کامپوننت‌ها)
+  const vitrinCommentsMap: Record<string, VitrinComment[]> = {};
+  vitrinComments.forEach(c => {
+    (vitrinCommentsMap[c.postId] = vitrinCommentsMap[c.postId] || []).push(c);
+  });
+
+  // صحت‌سنجی زنده اتصال به Supabase و پاک‌سازی قطعی هرگونه داده‌ی localStorage
+  useEffect(() => {
+    checkSupabaseHealth();
+    try {
+      localStorage.clear();
+    } catch {}
+  }, []);
+
+  // 🛡️ بررسی سلامت بک‌اند امن و پایش وضعیت آن
+  const [backendReady, setBackendReady] = useState<boolean>(() => Boolean(getBackendStatus()?.available));
+  useEffect(() => {
+    probeBackend();
+    return subscribeBackendStatus((status) => setBackendReady(Boolean(status.available)));
+  }, []);
+
+  // 🛡️ اعتبارسنجی نشست سمت سرور هنگام بارگذاری برنامه:
+  useEffect(() => {
+    if (!backendReady) return;
+    let cancelled = false;
+
+    apiSession().then((res) => {
+      if (cancelled) return;
+      const serverUser: User | undefined = res.ok && res.data?.authenticated ? (res.data.user as User) : undefined;
+
+      if (!serverUser) {
+        setCurrentUser(null);
+        setIsAdminMode(false);
+        setMustChangePassword(false);
+        return;
+      }
+
+      const safeUser: User = { ...serverUser, password: '' };
+      setCurrentUser((prev) => (prev && prev.id === safeUser.id ? { ...prev, ...safeUser } : safeUser));
+      if (res.data?.mustChangePassword) setMustChangePassword(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [backendReady]);
+
+  // 🛡️ پاک‌سازی رمزهای باقی‌مانده در حافظه مرورگر در «حالت امن»
+  useEffect(() => {
+    if (!backendReady) return;
+    setUsers(prev => {
+      const hasSecret = prev.some(u => Boolean(u.password));
+      return hasSecret ? prev.map(u => ({ ...u, password: '' })) : prev;
+    });
+  }, [backendReady, setUsers]);
+
+  // همگام‌سازی ذخیره‌های ویترین با Supabase هنگام تغییر (Bookmark Toggle)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      persistSavedPostsToDb(detail.userId, detail.ids);
+    };
+    window.addEventListener('warroom_saved_posts_changed', handler);
+    return () => window.removeEventListener('warroom_saved_posts_changed', handler);
+  }, []);
+
+  // دریافت تغییرات نظرات که توسط کامپوننت‌ها از طریق ابزارهای vitrinData انجام می‌شود
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        setVitrinComments(detail);
+      }
+    };
+    window.addEventListener('warroom_vitrin_comments_updated', handler);
+    return () => window.removeEventListener('warroom_vitrin_comments_updated', handler);
+  }, [setVitrinComments]);
+
+  /**
+   * ثبت درخواست تغییر رمز در «حالت محلی» (زمانی که بک‌اند امن در دسترس نیست).
+   * در حالت امن، این کار توسط سرور انجام و در پنل مدیریت نمایش داده می‌شود.
+   */
+  const createLocalPasswordResetRequest = (input: {
+    nationalCode: string;
+    contactPhone?: string;
+    note?: string;
+  }): { trackingCode: string } => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const trackingCode = `WR-${code}`;
+
+    const targetUser = users.find(
+      u => String(u.national_code || '').replace(/\D/g, '') === input.nationalCode
+    );
+
+    const request: PasswordResetRequest = {
+      id: `pr_local_${Date.now()}`,
+      tracking_code: trackingCode,
+      user_id: targetUser?.id,
+      national_code: input.nationalCode,
+      personal_code: targetUser?.personal_code,
+      full_name: targetUser ? `${targetUser.first_name} ${targetUser.last_name}` : '',
+      account_phone: targetUser?.phone || '',
+      contact_phone: input.contactPhone || targetUser?.phone || '',
+      note: input.note,
+      status: 'pending',
+      source: 'local',
+      created_at: new Date().toISOString()
+    };
+
+    setPasswordResetRequests(prev => [request, ...prev]);
+    return { trackingCode };
+  };
+
+  // Current Logged-in User (Managed in memory + Supabase backend)
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // Keep theme in sync with currentUser gender
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.gender === 'دختر') {
+        setCampaignTheme('girls');
+      } else if (currentUser.gender === 'پسر') {
+        setCampaignTheme('boys');
+      }
+    }
+  }, [currentUser]);
+
+  // بارگذاری ذخیره‌های (Bookmark) کاربر از دیتابیس Supabase
+  useEffect(() => {
+    if (currentUser) {
+      loadSavedPostsFromDb(currentUser.id);
+    }
+  }, [currentUser?.id]);
+
+  // Active Campaign Theme: 'girls' vs 'boys'
+  const [campaignTheme, setCampaignTheme] = useState<'girls' | 'boys'>('boys');
+
+  // UI Navigation State
+  const [activeTab, setActiveTab] = useState<string>('Home');
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+
+  const [showAuthScreen, setShowAuthScreen] = useState<boolean>(false);
+  const [showGamePortal, setShowGamePortal] = useState<boolean>(false);
+  /** 🛡️ الزام تغییر رمز پیش‌فرض/موقت (اعلام‌شده توسط سرور) */
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register_individual' | 'register_group'>('register_individual');
+
+  // Global active modal tracking (hides bottom nav & music bar with smooth exit animation when any modal opens)
+  const [modalActiveCount, setModalActiveCount] = useState<number>(0);
+
+  useEffect(() => {
+    const handleModalChange = (e: any) => {
+      if (e.detail && typeof e.detail.active === 'boolean') {
+        if (e.detail.active) {
+          setModalActiveCount(prev => prev + 1);
+        } else {
+          setModalActiveCount(prev => Math.max(0, prev - 1));
+        }
+      }
+    };
+
+    window.addEventListener('warroom_modal_active_change' as any, handleModalChange);
+    return () => {
+      window.removeEventListener('warroom_modal_active_change' as any, handleModalChange);
+    };
+  }, []);
+
+  const isModalActive = modalActiveCount > 0;
+
+  const handleDirectLogin = () => {
+    if (currentUser) {
+      if (currentUser.role === 'admin') {
+        setIsAdminMode(true);
+        setActiveTab('Admin');
+        setShowGamePortal(false);
+        setShowAuthScreen(false);
+        triggerAlert(`ورود مستقیم به پنل مدیریت: ${currentUser.first_name} ${currentUser.last_name}`);
+      } else {
+        setShowGamePortal(true);
+        setShowAuthScreen(false);
+        triggerAlert(`ورود به درگاه انتخاب بازی: ${currentUser.first_name} ${currentUser.last_name}`);
+      }
+      return;
+    }
+    setAuthMode('login');
+    setShowAuthScreen(true);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setShowAuthScreen(false);
+    setShowGamePortal(false);
+    setIsAdminMode(tab === 'Admin');
+    setActiveTab(tab);
+  };
+  const [showSquadModal, setShowSquadModal] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [alertNotification, setAlertNotification] = useState<string | null>(null);
+
+  // Eligibility checker for real-time notifications
+  const isEligibleForNotification = (notif: AppNotification, user: User | null) => {
+    if (!user) return notif.target === 'all';
+    if (notif.target === 'all') return true;
+    if (notif.target === 'girls' && user.gender === 'دختر') return true;
+    if (notif.target === 'boys' && user.gender === 'پسر') return true;
+    if (notif.target === 'leaders' && user.role === 'leader') return true;
+    if (notif.target === 'users' && user.role === 'user') return true;
+    if (notif.target === 'specific_user' && (notif.target_user_id === user.id || notif.target_personal_code === user.personal_code)) return true;
+    if (notif.target === 'specific_squad' && user.group_id && notif.target_group_id === user.group_id) return true;
+    if (user.role === 'admin') return true;
+    return false;
+  };
+
+  // Real-time notification broadcaster & listener across browser tabs
+  useEffect(() => {
+    const handleBroadcastEvent = (e: any) => {
+      const notif: AppNotification = e.detail;
+      if (notif && isEligibleForNotification(notif, currentUser)) {
+        setLiveToastNotification(notif);
+      }
+    };
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'warroom_last_live_notification' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed?.notif && isEligibleForNotification(parsed.notif, currentUser)) {
+            setLiveToastNotification(parsed.notif);
+          }
+        } catch (err) {}
+      }
+      if (e.key === 'warroom_notifications' && e.newValue) {
+        try {
+          setNotifications(JSON.parse(e.newValue));
+        } catch (err) {}
+      }
+    };
+
+    window.addEventListener('warroom_live_broadcast', handleBroadcastEvent);
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      window.removeEventListener('warroom_live_broadcast', handleBroadcastEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [currentUser]);
+
+  // Calculate unread notifications count for current user
+  const unreadNotificationsCount = notifications.filter(n => {
+    if (!currentUser) return false;
+    if (!isEligibleForNotification(n, currentUser)) return false;
+    return !n.is_read_by.includes(currentUser.id);
+  }).length;
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('warroom_current_user_id', currentUser.id);
+    } else {
+      localStorage.removeItem('warroom_current_user_id');
+    }
+  }, [currentUser]);
+
+  // System notification alert trigger
+  const triggerAlert = (msg: string) => {
+    setAlertNotification(msg);
+    setTimeout(() => {
+      setAlertNotification(null);
+    }, 4500);
+  };
+
+  const handleLogout = () => {
+    // 🛡️ ابطال نشست سمت سرور (توکن هش‌شده + کوکی HttpOnly)
+    if (backendReady) {
+      apiLogout().catch(() => { /* خروج محلی در هر صورت انجام می‌شود */ });
+    }
+    setMustChangePassword(false);
+    setCurrentUser(null);
+    setIsAdminMode(false);
+    setActiveTab('Home');
+    setShowAuthScreen(false);
+    localStorage.removeItem('warroom_current_user_id');
+    localStorage.removeItem('warroom_current_user_data');
+    localStorage.removeItem('warroom_active_tab');
+    triggerAlert('خروج از سامانه اتاق جنگ با موفقیت انجام شد.');
+  };
+
+  const handleLoginSuccess = (user: User, meta?: { mustChangePassword?: boolean }) => {
+    setCurrentUser(user);
+    setShowAuthScreen(false);
+    // 🛡️ اگر مدیر با رمز پیش‌فرض/موقت وارد شده باشد، تغییر رمز اجباری می‌شود
+    setMustChangePassword(Boolean(meta?.mustChangePassword));
+
+    if (user.gender === 'دختر') {
+      setCampaignTheme('girls');
+    } else {
+      setCampaignTheme('boys');
+    }
+
+    if (user.role === 'admin') {
+      setIsAdminMode(true);
+      setActiveTab('Admin');
+      setShowGamePortal(false);
+      triggerAlert(`خوش آمدید مدیر کل ${user.first_name} ${user.last_name} — وارد پنل مدیریت شدید.`);
+    } else {
+      setShowGamePortal(true);
+      triggerAlert(`خوش آمدید رزمنده ${user.first_name} ${user.last_name} — لطفا سامانه بازی را انتخاب کنید.`);
+    }
+  };
+
+  const handleSelectWarRoom = () => {
+    setShowGamePortal(false);
+    const user = currentUser;
+
+    if (user) {
+      if (user.role === 'admin') {
+        setIsAdminMode(true);
+        setActiveTab('Admin');
+      } else {
+        setIsAdminMode(false);
+        setActiveTab('Journey');
+        setShowOnboardingTutorial(true); // Launch Commander Guided Tutorial
+      }
+      triggerAlert(`ورود موفقیت‌آمیز به اتاق جنگ`);
+    }
+  };
+
+  const handleOpenAuth = (mode: 'login' | 'register_individual' | 'register_group') => {
+    const activeUser = currentUser;
+
+    if (activeUser) {
+      if (activeUser.role === 'admin') {
+        setIsAdminMode(true);
+        setActiveTab('Admin');
+        setShowGamePortal(false);
+        setShowAuthScreen(false);
+        return;
+      }
+      setShowGamePortal(true);
+      setShowAuthScreen(false);
+      return;
+    }
+
+    setAuthMode(mode);
+    setShowAuthScreen(true);
+  };
+
+  // Guard: If currentUser is logged in, immediately dismiss any auth screen
+  useEffect(() => {
+    if (currentUser && showAuthScreen) {
+      setShowAuthScreen(false);
+      if (currentUser.role === 'admin') {
+        setIsAdminMode(true);
+        setActiveTab('Admin');
+      } else {
+        setIsAdminMode(false);
+        setActiveTab('Journey');
+      }
+    }
+  }, [currentUser, showAuthScreen]);
+
+  // Guard: Regular users are routed to Journey if they attempt to access Dashboard
+  useEffect(() => {
+    if (!isAdminMode && activeTab === 'Dashboard') {
+      setActiveTab('Journey');
+    }
+  }, [isAdminMode, activeTab]);
+
+  const isGirlsTheme = campaignTheme === 'girls' || currentUser?.gender === 'دختر';
+
+  return (
+    <div className={`text-slate-100 min-h-screen w-full overflow-x-hidden flex flex-col relative font-sans dir-rtl transition-colors duration-700 ${
+      isGirlsTheme ? 'girls-atmosphere-bg' : 'boys-atmosphere-bg'
+    }`}>
+      
+      {/* Loading Screen with Radar & Logo */}
+      {isLoading && (
+        <LoadingScreen onComplete={() => setIsLoading(false)} isGirls={isGirlsTheme} />
+      )}
+
+      {/* Background Epic Music Toggle */}
+      <BackgroundMusic />
+
+      {/* Dynamic Background Atmosphere */}
+      {isGirlsTheme ? (
+        /* Girls Wallpaper Atmosphere: Obsidian top, Neon Magenta bottom-left, Royal Violet bottom-right */
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute top-0 inset-x-0 h-[40vh] bg-gradient-to-b from-[#020005] via-[#080110]/60 to-transparent" />
+          <div className="absolute -bottom-24 -left-20 w-[550px] sm:w-[700px] h-[550px] sm:h-[700px] blur-[140px] sm:blur-[170px] rounded-full bg-[#ff1389]/30 pointer-events-none transition-all duration-700" />
+          <div className="absolute -bottom-24 -right-20 w-[600px] sm:w-[750px] h-[600px] sm:h-[750px] blur-[150px] sm:blur-[180px] rounded-full bg-[#7c3aed]/35 pointer-events-none transition-all duration-700" />
+          <div className="absolute bottom-[20%] left-1/2 -translate-x-1/2 w-[500px] h-[400px] blur-[160px] rounded-full bg-[#4a0d67]/25 pointer-events-none" />
+        </div>
+      ) : (
+        /* Boys Wallpaper Atmosphere: Exactly matching uploaded wallpaper (Obsidian void top, Crimson Red bottom-left, Electric Cobalt Blue bottom-right, Central violet blend, and crisp 32px grid) */
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute top-0 inset-x-0 h-[45vh] bg-gradient-to-b from-[#000104] via-[#010309]/85 to-transparent" />
+          <div className="absolute -bottom-20 -left-20 w-[550px] sm:w-[750px] h-[550px] sm:h-[750px] blur-[130px] sm:blur-[160px] rounded-full bg-gradient-to-tr from-[#991b1b] via-[#dc2626] to-[#e11d48] opacity-65 pointer-events-none transition-all duration-700" />
+          <div className="absolute -bottom-20 -right-20 w-[600px] sm:w-[800px] h-[600px] sm:h-[800px] blur-[140px] sm:blur-[170px] rounded-full bg-gradient-to-tl from-[#1e40af] via-[#2563eb] to-[#3b82f6] opacity-70 pointer-events-none transition-all duration-700" />
+          <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[550px] h-[350px] blur-[150px] rounded-full bg-[#581c87]/35 pointer-events-none" />
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.075)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.075)_1px,transparent_1px)] bg-[size:32px_32px] opacity-80" />
+        </div>
+      )}
+
+      {/* 🛡️ تغییر اجباری رمز پیش‌فرض/موقت مدیر */}
+      {mustChangePassword && currentUser && (
+        <ForcePasswordChangeModal
+          userName={`${currentUser.first_name} ${currentUser.last_name}`}
+          onChanged={() => {
+            setMustChangePassword(false);
+            triggerAlert('رمز عبور شما با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.');
+            handleLogout();
+            setShowAuthScreen(true);
+            setAuthMode('login');
+          }}
+          onLogout={() => {
+            setMustChangePassword(false);
+            handleLogout();
+          }}
+        />
+      )}
+
+      {/* Global Toast Alert Notification (Swipeable right on Touch/Mobile + Close X Button) */}
+      <AnimatePresence>
+        {alertNotification && (
+          <motion.div
+            key="global-alert-toast"
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+            exit={{ opacity: 0, x: 280, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0.05, right: 0.8 }}
+            onDragEnd={(_e, info) => {
+              // Swipe right gesture detection
+              if (info.offset.x > 50 || info.velocity.x > 150) {
+                setAlertNotification(null);
+              }
+            }}
+            className="fixed top-4 left-3 right-3 sm:left-auto sm:right-6 z-50 p-[1px] rounded-2xl bg-gradient-to-r from-red-600 via-amber-500 to-rose-600 shadow-[0_0_30px_rgba(220,38,38,0.6)] sm:max-w-md cursor-grab active:cursor-grabbing touch-pan-y"
+          >
+            <div className="p-3.5 sm:p-4 rounded-[15px] bg-[#050818]/95 flex items-start justify-between gap-3 border border-red-500/40 dir-rtl select-none">
+              <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-xl bg-red-950 text-red-400 border border-red-800 shadow-inner">
+                  <Bell size={16} className="animate-bounce" />
+                </span>
+                <div className="space-y-0.5 text-right min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-red-400 font-mono">پیام سیستم اتاق جنگ</span>
+                    <span className="text-[9px] text-amber-400/80 font-mono hidden sm:inline-block">← بکشید به راست</span>
+                  </div>
+                  <p className="text-xs text-slate-100 font-semibold leading-relaxed break-words">
+                    {alertNotification}
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button ('X') for Web & Desktop */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAlertNotification(null);
+                }}
+                className="p-1 rounded-lg bg-slate-900/90 text-slate-400 hover:text-white hover:bg-red-950/80 border border-slate-800 hover:border-red-500/50 transition shrink-0"
+                title="بستن هشدار"
+                aria-label="بستن هشدار"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAuthScreen ? (
+          /* Authentication / Registration Page for War Room */
+          <motion.div
+            key="auth"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <AuthView 
+              users={users}
+              setUsers={setUsers}
+              groups={groups}
+              setGroups={setGroups}
+              onLoginSuccess={handleLoginSuccess}
+              triggerAlert={triggerAlert}
+              onBackToHome={() => {
+                setShowAuthScreen(false);
+                setActiveTab('Home');
+              }}
+              initialAuthMode={authMode}
+              campaignTheme={campaignTheme}
+              createLocalPasswordResetRequest={createLocalPasswordResetRequest}
+            />
+          </motion.div>
+        ) : activeTab === 'Home' ? (
+          /* Primary Mobile-First Home Landing View */
+          <motion.div
+            key="homeView"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <HomeView 
+              currentUser={currentUser}
+              groups={groups}
+              activeTab={activeTab}
+              setActiveTab={handleTabChange}
+              onOpenAuth={handleOpenAuth}
+              onLogout={handleLogout}
+              onOpenSquadModal={() => setShowSquadModal(true)}
+              triggerAlert={triggerAlert}
+              siteSettings={siteSettings}
+              homeAnnouncements={homeAnnouncements}
+              homeStats={homeStats}
+              faqs={faqs}
+              campaignTheme={campaignTheme}
+              onChangeCampaign={() => {
+                const newTheme = campaignTheme === 'boys' ? 'girls' : 'boys';
+                setCampaignTheme(newTheme);
+                localStorage.setItem('hisstory_theme_mode', newTheme);
+                triggerAlert(newTheme === 'girls' ? 'پویش دختران فعال شد.' : 'پویش پسران فعال شد.');
+              }}
+            />
+          </motion.div>
+        ) : (activeTab === 'Support' || activeTab === 'Contact') ? (
+          /* Standalone Animated Contact Us Page (Public & Independent) */
+          <motion.div
+            key="contactPage"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+          >
+            <ContactView 
+              onNavigate={(tab) => handleTabChange(tab)}
+              triggerAlert={triggerAlert}
+              siteSettings={siteSettings}
+            />
+          </motion.div>
+        ) : activeTab === 'About' ? (
+          /* Standalone Animated About Us Page */
+          <motion.div
+            key="aboutPage"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+          >
+            <AboutView 
+              onNavigate={(tab) => handleTabChange(tab)}
+              siteSettings={siteSettings}
+              homeStats={homeStats}
+            />
+          </motion.div>
+        ) : (
+          /* Main Platform View for other logged-in tabs */
+          <motion.div
+            key="platform"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="min-h-screen flex flex-col relative z-10"
+          >
+            {/* Top Navigation Bar */}
+            <Navbar 
+              currentUser={currentUser}
+              currentTab={activeTab}
+              setCurrentTab={handleTabChange}
+              onLogout={handleLogout}
+              onOpenSquadModal={() => setShowSquadModal(true)}
+              onOpenNotifications={() => setShowNotificationCenter(true)}
+              onOpenGamePortal={() => setShowGamePortal(true)}
+              unreadNotificationsCount={unreadNotificationsCount}
+              isAdminView={isAdminMode}
+              setIsAdminView={setIsAdminMode}
+              campaignTheme={campaignTheme}
+            />
+
+            {/* Main Content Body */}
+            <main className={`flex-1 w-full mx-auto ${
+              activeTab === 'Journey'
+                ? 'max-w-full px-0 py-0 flex flex-col h-[calc(100vh-64px)] overflow-hidden'
+                : 'max-w-7xl px-4 md:px-8 pt-5 pb-28 md:pb-8'
+            }`}>
+              <Suspense fallback={<ViewFallback />}>
+                {isAdminMode ? (
+                  <AdminPanel 
+                    currentUser={currentUser!}
+                    users={users}
+                    setUsers={setUsers}
+                    groups={groups}
+                    missions={missions}
+                    setMissions={setMissions}
+                    submissions={submissions}
+                    setSubmissions={setSubmissions}
+                    trainings={trainings}
+                    setTrainings={setTrainings}
+                    medals={medals}
+                    setMedals={setMedals}
+                    userMedals={userMedals}
+                    setUserMedals={setUserMedals}
+                    tickets={tickets}
+                    setTickets={setTickets}
+                    replies={replies}
+                    setReplies={setReplies}
+                    announcements={announcements}
+                    setAnnouncements={setAnnouncements}
+                    news={news}
+                    setNews={setNews}
+                    notifications={notifications}
+                    setNotifications={setNotifications}
+                    vitrinPosts={vitrinPosts}
+                    setVitrinPosts={setVitrinPosts}
+                    gamePortals={gamePortals}
+                    setGamePortals={setGamePortals}
+                    onBroadcastNotification={(notif) => {
+                      setLiveToastNotification(notif);
+                    }}
+                    triggerAlert={triggerAlert}
+                    siteSettings={siteSettings}
+                    setSiteSettings={setSiteSettings}
+                    homeAnnouncements={homeAnnouncements}
+                    setHomeAnnouncements={setHomeAnnouncements}
+                    homeStats={homeStats}
+                    setHomeStats={setHomeStats}
+                    faqs={faqs}
+                    setFaqs={setFaqs}
+                    passwordResetRequests={passwordResetRequests}
+                    setPasswordResetRequests={setPasswordResetRequests}
+                    onNavigate={(tab) => handleTabChange(tab)}
+                  />
+                ) : (
+                  <>
+                    {(activeTab === 'Journey' || activeTab === 'Profile') && (
+                      <JourneyView 
+                        currentUser={currentUser}
+                        showMapBackground={activeTab === 'Journey'}
+                        groups={groups}
+                        medals={medals}
+                        userMedals={userMedals}
+                        initialOpenProfile={activeTab === 'Profile'}
+                        onEnterDashboard={(stageId) => {
+                          handleTabChange('Dashboard');
+                        }}
+                        onNavigateTab={(tab) => {
+                          handleTabChange(tab);
+                        }}
+                        triggerAlert={triggerAlert}
+                        onOpenProfile={() => setShowProfileModal(true)}
+                        onOpenNotifications={() => setShowNotificationCenter(true)}
+                        onUpdateAvatar={(newUrl) => {
+                          if (currentUser) {
+                            const updated = { ...currentUser, avatar_url: newUrl };
+                            setCurrentUser(updated);
+                            setUsers(users.map(u => u.id === updated.id ? updated : u));
+                          }
+                        }}
+                      />
+                    )}
+
+                    {(activeTab === 'Rewards' || activeTab === 'Prizes' || activeTab === 'RewardsLeaderboard' || activeTab === 'Leaderboard') && (
+                      <PrizesPointsView 
+                        currentUser={currentUser}
+                        users={users}
+                        groups={groups}
+                        medals={medals}
+                        userMedals={userMedals}
+                        initialSubTab={activeTab === 'Leaderboard' || activeTab === 'RewardsLeaderboard' ? 'leaderboard' : 'prizes'}
+                        triggerAlert={triggerAlert}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                      />
+                    )}
+
+                    {activeTab === 'Vitrin' && (
+                      <VitrinView 
+                        currentUser={currentUser}
+                        posts={vitrinPosts}
+                        setPosts={setVitrinPosts}
+                        commentsMap={vitrinCommentsMap}
+                        triggerAlert={triggerAlert}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                      />
+                    )}
+
+                    {activeTab === 'Dashboard' && (
+                      <DashboardView 
+                        currentUser={currentUser!}
+                        users={users}
+                        groups={groups}
+                        missions={missions}
+                        submissions={submissions}
+                        announcements={announcements}
+                        news={news}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                        onOpenSquadModal={() => setShowSquadModal(true)}
+                      />
+                    )}
+
+                    {activeTab === 'Missions' && (
+                      <MissionsView 
+                        currentUser={currentUser!}
+                        missions={missions}
+                        submissions={submissions}
+                        setSubmissions={setSubmissions}
+                        triggerAlert={triggerAlert}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                      />
+                    )}
+
+                    {activeTab === 'Trainings' && (
+                      <TrainingsView 
+                        currentUser={currentUser!}
+                        trainings={trainings}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                      />
+                    )}
+
+                    {activeTab === 'Profile' && (
+                      <ProfileView 
+                        currentUser={currentUser!}
+                        groups={groups}
+                        medals={medals}
+                        userMedals={userMedals}
+                        onNavigate={(tab) => handleTabChange(tab)}
+                        triggerAlert={triggerAlert}
+                      />
+                    )}
+                  </>
+                )}
+              </Suspense>
+            </main>
+
+            {/* Squad Management Modal for Commanders */}
+            {showSquadModal && currentUser && (
+              <SquadManagementModal 
+                currentUser={currentUser}
+                users={users}
+                setUsers={setUsers}
+                groups={groups}
+                setGroups={setGroups}
+                onClose={() => setShowSquadModal(false)}
+                triggerAlert={triggerAlert}
+              />
+            )}
+
+            {/* Profile & Avatar Selection Modal */}
+            {showProfileModal && currentUser && (
+              <ProfileModal 
+                isOpen={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+                currentUser={currentUser}
+                onUpdateAvatar={(newUrl) => {
+                  const updated = { ...currentUser, avatar_url: newUrl };
+                  setCurrentUser(updated);
+                  setUsers(users.map(u => u.id === updated.id ? updated : u));
+                }}
+                medals={medals}
+                userMedals={userMedals}
+                triggerAlert={triggerAlert}
+                onNavigateTab={(tab) => handleTabChange(tab)}
+              />
+            )}
+
+            {/* Clash of Clans Style Commander Onboarding Tutorial */}
+            {showOnboardingTutorial && (
+              <OnboardingCommanderTutorial 
+                currentUser={currentUser}
+                onComplete={() => setShowOnboardingTutorial(false)}
+                onNavigateTab={(tab) => handleTabChange(tab)}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Floating Android Mobile Bottom Navigation (فقط در بخش‌های پنل — در صفحه اول سایت و صفحات عمومی اصلاً نمایش داده نمی‌شود) */}
+      <AnimatePresence>
+        {!(isModalActive || showNotificationCenter || showGamePortal || showSquadModal || showProfileModal || showOnboardingTutorial) && !showAuthScreen && currentUser && !['Home', 'About', 'Support', 'Contact'].includes(activeTab) && (
+          <motion.div
+            key="android-bottom-nav-container"
+            initial={{ y: 90, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 90, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="fixed bottom-0 inset-x-0 z-40 pointer-events-auto"
+          >
+            <BottomNavigation 
+              activeTab={isAdminMode ? 'Admin' : activeTab}
+              setActiveTab={(tab) => {
+                setIsAdminMode(false);
+                handleTabChange(tab);
+              }}
+              currentUser={currentUser}
+              isAdminMode={isAdminMode}
+              setIsAdminMode={setIsAdminMode}
+              campaignTheme={campaignTheme}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Real-Time Live Notification Floating Toast */}
+      <LiveNotificationToast 
+        notification={liveToastNotification}
+        onDismiss={() => setLiveToastNotification(null)}
+        onOpenCenter={() => {
+          setLiveToastNotification(null);
+          setShowNotificationCenter(true);
+        }}
+        onActionClick={(tab) => {
+          if (liveToastNotification && currentUser) {
+            setNotifications(prev => prev.map(n => 
+              n.id === liveToastNotification.id && !n.is_read_by.includes(currentUser.id)
+                ? { ...n, is_read_by: [...n.is_read_by, currentUser.id] }
+                : n
+            ));
+          }
+          setLiveToastNotification(null);
+          handleTabChange(tab);
+        }}
+      />
+
+      {/* Global Comprehensive Notification Center Modal */}
+      <Suspense fallback={null}>
+        {showNotificationCenter && (
+          <NotificationCenterModal 
+            isOpen={showNotificationCenter}
+            onClose={() => setShowNotificationCenter(false)}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            currentUser={currentUser}
+            onNavigate={(tab) => {
+              setShowNotificationCenter(false);
+              handleTabChange(tab);
+            }}
+          />
+        )}
+
+        {/* Game / Campaign Selection Portal Modal */}
+        <GameSelectionPortalModal 
+          isOpen={showGamePortal}
+          onClose={() => setShowGamePortal(false)}
+          currentUser={currentUser}
+          onSelectWarRoom={handleSelectWarRoom}
+          campaignTheme={campaignTheme}
+          portals={gamePortals}
+        />
+      </Suspense>
+
+      {/* Global Fixed Persistent Music Player Bar (Visible across all tabs and views) */}
+      <AnimatePresence>
+        {!(isModalActive || showNotificationCenter || showGamePortal || showSquadModal || showProfileModal || showOnboardingTutorial) && (
+          <motion.div
+            key="persistent-music-bar-container"
+            initial={{ y: 90, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 90, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="fixed bottom-0 left-0 z-40 pointer-events-auto"
+          >
+            <PersistentMusicBar 
+              hasBottomNav={Boolean(!showAuthScreen && currentUser)} 
+              isGirls={isGirlsTheme}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}
