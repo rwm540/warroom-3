@@ -381,36 +381,40 @@ export default function RadarLoading({
         </svg>
       </div>
 
-      {/* Label & Status Text */}
-      <div className="flex flex-col items-center text-center mt-3 space-y-1 z-10">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <h3 className="text-emerald-300 font-bold text-sm sm:text-base tracking-wide drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]">
-            {label}
-          </h3>
-        </div>
-        {subLabel && (
-          <p className="text-[11px] font-mono text-emerald-400/70">{subLabel}</p>
-        )}
+      {/* Label & Status Text (Only rendered when explicitly provided) */}
+      {(label || subLabel || typeof progress === 'number') && (
+        <div className="flex flex-col items-center text-center mt-3 space-y-1 z-10">
+          {label && (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <h3 className="text-emerald-300 font-bold text-sm sm:text-base tracking-wide drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]">
+                {label}
+              </h3>
+            </div>
+          )}
+          {subLabel && (
+            <p className="text-[11px] font-mono text-emerald-400/70">{subLabel}</p>
+          )}
 
-        {/* Optional Progress Bar */}
-        {typeof progress === 'number' && (
-          <div className="w-48 sm:w-56 mt-2 space-y-1">
-            <div className="w-full h-1.5 rounded-full bg-emerald-950 border border-emerald-500/40 overflow-hidden p-[1px]">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-green-300 shadow-[0_0_8px_#34d399]"
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                transition={{ duration: 0.2 }}
-              />
+          {/* Optional Progress Bar */}
+          {typeof progress === 'number' && (
+            <div className="w-48 sm:w-56 mt-2 space-y-1">
+              <div className="w-full h-1.5 rounded-full bg-emerald-950 border border-emerald-500/40 overflow-hidden p-[1px]">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-green-300 shadow-[0_0_8px_#34d399]"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                  transition={{ duration: 0.2 }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-mono text-emerald-400/80 px-0.5">
+                <span>پایش فعال</span>
+                <span className="font-bold">{progress}٪</span>
+              </div>
             </div>
-            <div className="flex justify-between text-[10px] font-mono text-emerald-400/80 px-0.5">
-              <span>پایش فعال</span>
-              <span className="font-bold">{progress}٪</span>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 

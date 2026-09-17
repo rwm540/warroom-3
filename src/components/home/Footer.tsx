@@ -65,23 +65,32 @@ export default function Footer({ onNavigate, onOpenAbout, themeMode = 'boys', tr
             </div>
 
             {/* Quick Links */}
-            <div className="flex items-center gap-4 text-xs font-bold pt-2 border-t border-slate-800/80">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-bold pt-2 border-t border-slate-800/80">
               <button
                 type="button"
-                onClick={onOpenAbout}
-                className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition cursor-pointer"
+                onClick={() => onNavigate('About')}
+                className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 transition cursor-pointer"
               >
                 <Info size={15} />
-                <span>درباره ما و قوانین</span>
+                <span>درباره ما</span>
               </button>
-              <span className="text-slate-700">•</span>
+              <span className="text-slate-600">•</span>
+              <button
+                type="button"
+                onClick={() => onNavigate('Rules')}
+                className="flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 transition cursor-pointer"
+              >
+                <Shield size={15} />
+                <span>قوانین و مقررات</span>
+              </button>
+              <span className="text-slate-600">•</span>
               <button
                 type="button"
                 onClick={() => onNavigate('Contact')}
-                className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 transition cursor-pointer"
+                className="flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200 transition cursor-pointer"
               >
                 <Phone size={15} />
-                <span>اطلاعات تماس</span>
+                <span>پشتیبانی و ثبت تیکت</span>
               </button>
             </div>
           </div>

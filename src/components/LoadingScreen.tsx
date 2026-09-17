@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import RadarLoading from './RadarLoading';
 
@@ -8,41 +8,13 @@ interface LoadingScreenProps {
 }
 
 export default function LoadingScreen({ onComplete, isGirls }: LoadingScreenProps) {
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('در حال برقراری ارتباط امن با پایگاه داده...');
-
   useEffect(() => {
-    // Total duration: ~2.5 seconds (steps of ~25ms with smooth increments)
-    const startTime = Date.now();
-    const duration = 2500; // 2.5 seconds
+    // Total duration: ~2.0 seconds smooth transition
+    const timer = setTimeout(() => {
+      onComplete();
+    }, 2000);
 
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const calculated = Math.min(100, Math.floor((elapsed / duration) * 100));
-
-      setProgress(calculated);
-
-      if (calculated < 25) {
-        setStatusText('در حال برقراری ارتباط امن با سرور و دیتابیس ابری...');
-      } else if (calculated < 50) {
-        setStatusText('پایش راداری و بارگذاری پروفایل رزمندگان...');
-      } else if (calculated < 75) {
-        setStatusText('همگام‌سازی ماموریت‌ها، امتیازات و اطلاعات اتاق جنگ...');
-      } else if (calculated < 95) {
-        setStatusText('آماده‌سازی رابط کاربری و تجهیزات عملیاتی...');
-      } else {
-        setStatusText('ورود به عرصه نبرد اتاق جنگ...');
-      }
-
-      if (elapsed >= duration) {
-        clearInterval(interval);
-        setTimeout(() => {
-          onComplete();
-        }, 300);
-      }
-    }, 30);
-
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [onComplete]);
 
   return (
@@ -68,18 +40,14 @@ export default function LoadingScreen({ onComplete, isGirls }: LoadingScreenProp
           </div>
         )}
 
-        {/* Tactical Radar Display */}
-        <div className="relative z-10 flex flex-col items-center">
-          <RadarLoading
-            size="md"
-            label="سامانه اتاق جنگ هیس‌توری"
-            subLabel={statusText}
-            progress={progress}
-          />
+        {/* Minimal Pure Tactical Radar Display (No extra text, no labels) */}
+        <div className="relative z-10 flex items-center justify-center">
+          <RadarLoading size="md" />
         </div>
       </motion.div>
     </AnimatePresence>
   );
 }
+
 
 

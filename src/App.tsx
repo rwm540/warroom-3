@@ -90,6 +90,7 @@ import TrainingsView from './components/TrainingsView';
 import SupportView from './components/SupportView';
 import ContactView from './components/ContactView';
 import AboutView from './components/AboutView';
+import RulesView from './components/RulesView';
 import ProfileView from './components/ProfileView';
 import PrizesPointsView from './components/PrizesPointsView';
 import VitrinView from './components/VitrinView';
@@ -826,7 +827,7 @@ export default function App() {
             />
           </motion.div>
         ) : (activeTab === 'Support' || activeTab === 'Contact') ? (
-          /* Standalone Animated Contact Us Page (Public & Independent) */
+          /* Standalone Animated Contact & Ticket Page (Public & Independent) */
           <motion.div
             key="contactPage"
             initial={{ opacity: 0 }}
@@ -839,6 +840,9 @@ export default function App() {
               onNavigate={(tab) => handleTabChange(tab)}
               triggerAlert={triggerAlert}
               siteSettings={siteSettings}
+              currentUser={currentUser}
+              tickets={tickets}
+              setTickets={setTickets}
             />
           </motion.div>
         ) : activeTab === 'About' ? (
@@ -855,6 +859,21 @@ export default function App() {
               onNavigate={(tab) => handleTabChange(tab)}
               siteSettings={siteSettings}
               homeStats={homeStats}
+            />
+          </motion.div>
+        ) : activeTab === 'Rules' ? (
+          /* Standalone Animated Rules Page */
+          <motion.div
+            key="rulesPage"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+          >
+            <RulesView 
+              onNavigate={(tab) => handleTabChange(tab)}
+              siteSettings={siteSettings}
             />
           </motion.div>
         ) : (

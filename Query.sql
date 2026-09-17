@@ -139,6 +139,20 @@ create table if not exists public.warroom_faqs (
   updated_at timestamptz not null default now()
 );
 
+-- مراحل نقشه بازی (Stages)
+create table if not exists public.warroom_stages (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- جوایز و پاداش‌ها (Prizes)
+create table if not exists public.warroom_prizes (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- 🆕 آثار ویترین (پست‌های نمایش عمومی — ساخته می‌شوند از پنل مدیریت)
 create table if not exists public.warroom_vitrin_posts (
   id         text primary key,
@@ -233,7 +247,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'warroom_users','warroom_groups','warroom_missions','warroom_submissions',
+    'warroom_users','warroom_groups','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
     'warroom_trainings','warroom_medals','warroom_user_medals',
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
@@ -286,6 +300,8 @@ create unique index if not exists idx_warroom_users_single_admin
 
 alter table public.warroom_users              enable row level security;
 alter table public.warroom_groups             enable row level security;
+alter table public.warroom_stages             enable row level security;
+alter table public.warroom_prizes             enable row level security;
 alter table public.warroom_missions           enable row level security;
 alter table public.warroom_submissions        enable row level security;
 alter table public.warroom_trainings          enable row level security;
@@ -317,7 +333,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'warroom_users','warroom_groups','warroom_missions','warroom_submissions',
+    'warroom_users','warroom_groups','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
     'warroom_trainings','warroom_medals','warroom_user_medals',
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
@@ -385,6 +401,41 @@ create policy "warroom_media_public_update" on storage.objects
 drop policy if exists "warroom_media_public_delete" on storage.objects;
 create policy "warroom_media_public_delete" on storage.objects
   for delete to anon, authenticated using (bucket_id = 'warroom-media');
+
+-- ----------------------------------------------------------------------------
+-- ۸) فعال‌سازی انتشار بلادرنگ (Realtime Publications) برای دریافت آنی نوتیفیکیشن‌ها و تیکت‌ها
+-- ----------------------------------------------------------------------------
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime add table 
+      public.warroom_notifications,
+      public.warroom_support_tickets,
+      public.warroom_support_replies,
+      public.warroom_users,
+      public.warroom_missions,
+      public.warroom_submissions,
+      public.warroom_groups,
+      public.warroom_stages,
+      public.warroom_prizes,
+      public.warroom_trainings,
+      public.warroom_medals,
+      public.warroom_user_medals,
+      public.warroom_announcements,
+      public.warroom_news,
+      public.warroom_home_announcements,
+      public.warroom_faqs,
+      public.warroom_vitrin_posts,
+      public.warroom_vitrin_comments,
+      public.warroom_game_portals,
+      public.warroom_kv,
+      public.warroom_password_reset_requests;
+  end if;
+exception
+  when others then
+    null; -- در صورت اضافه بودن قبلی جدول‌ها خطا ندهد
+end;
+$$;
 
 -- ============================================================================
 -- ۸) سیاست‌های سخت‌گیرانه «حالت تولیدی» (اختیاری — برای انتشار عمومی)
