@@ -35,7 +35,7 @@ import {
   MessageSquare,
   ArrowRight
 } from 'lucide-react';
-import { User, Group, Mission, MissionSubmission, Announcement, News, Medal, UserMedal, SupportTicket, SupportReply } from '../types';
+import { User, Group, Mission, MissionSubmission, Announcement, News, Medal, UserMedal, SupportTicket, SupportReply, JourneyStage } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import TicketsView from './TicketsView';
 
@@ -47,6 +47,7 @@ interface DashboardViewProps {
   submissions: MissionSubmission[];
   announcements: Announcement[];
   news: News[];
+  stages?: JourneyStage[];
   medals?: Medal[];
   userMedals?: UserMedal[];
   tickets?: SupportTicket[];
@@ -67,6 +68,7 @@ export default function DashboardView({
   submissions,
   announcements,
   news,
+  stages = [],
   medals = [],
   userMedals = [],
   tickets = [],
@@ -113,17 +115,17 @@ export default function DashboardView({
 
   // Submissions calculation
   const userSubmissions = submissions.filter(s => s.user_id === currentUser.id);
-  const totalScore = userSubmissions
+  const totalScore = (currentUser.points || 0) + userSubmissions
     .filter(s => s.status === 'approved')
-    .reduce((acc, curr) => acc + (curr.awarded_score || 0), 0) + 14250; // default tactical baseline
+    .reduce((acc, curr) => acc + (curr.awarded_score || 0), 0);
 
   const approvedCount = userSubmissions.filter(s => s.status === 'approved').length;
   const activeMissions = missions.filter(m => m.is_active);
   const userGroup = groups.find(g => g.id === currentUser.group_id);
   const squadMembers = users.filter(u => u.group_id === currentUser.group_id);
 
-  // Medals calculation
-  const earnedUserMedalsCount = userMedals.filter(um => um.personal_code === currentUser.personal_code).length || 4;
+  // Medals calculation (منحصراً بر اساس مدال‌های ثبت‌شده رزمنده در دیتابیس ابری Supabase)
+  const earnedUserMedalsCount = userMedals.filter(um => um.user_id === currentUser.id || um.personal_code === currentUser.personal_code).length;
 
   // Tickets calculation
   const userTickets = tickets.filter(t => t.user_id === currentUser.id);
@@ -187,16 +189,22 @@ export default function DashboardView({
     i.groupName.includes(searchRanking)
   );
 
-  // 7 Stages Roadmap definition
-  const stagesList = [
-    { id: 's1', title: 'آغاز مسیر', subtitle: 'پذیرش در قرارگاه', status: 'completed', icon: Flag, score: 0 },
-    { id: 's2', title: 'معرفت', subtitle: 'شناخت جبهه فکری', status: 'completed', icon: Heart, score: 200 },
-    { id: 's3', title: 'آمادگی', subtitle: 'تجهیز به مهارت‌های عملیاتی', status: 'completed', icon: Shield, score: 500 },
-    { id: 's4', title: 'خدمت', subtitle: 'عملیات رصد سایبری (جاری)', status: 'in_progress', icon: Flame, score: 1000 },
-    { id: 's5', title: 'همراهی', subtitle: 'هم‌افزایی استانی جوخه‌ها', status: 'locked', icon: Users, score: 1800 },
-    { id: 's6', title: 'زیارت', subtitle: 'میقات معنوی و اردوی تربیتی', status: 'locked', icon: Sparkles, score: 2500 },
-    { id: 's7', title: 'سفیر عشق', subtitle: 'نشان زرین خادمی ملی', status: 'locked', icon: Award, score: 3500 }
-  ];
+  // محاسبه پویای مراحل نقشه راه بر اساس دیتابیس Supabase و وضعیت رزمنده
+  const userCompletedStageIds = Array.isArray(currentUser.completed_stages) ? currentUser.completed_stages : [];
+  const stagesList = stages.map((st, idx) => {
+    const isDone = userCompletedStageIds.includes(st.id);
+    const prevDone = idx === 0 || userCompletedStageIds.includes(stages[idx - 1].id);
+    const status = isDone ? 'completed' : ((prevDone || (currentUser.points || 0) >= st.requiredPoints) ? 'in_progress' : 'locked');
+    return {
+      id: st.id,
+      title: st.title,
+      subtitle: st.subtitle,
+      status,
+      icon: isDone ? CheckCircle : Flag,
+      score: st.requiredPoints,
+      customIconUrl: st.customIconUrl
+    };
+  });
 
   return (
     <div className={`space-y-4 md:space-y-5 dir-rtl pb-16 font-sans max-w-7xl mx-auto w-full px-2 sm:px-4 overflow-y-auto scroll-smooth ${isGirl ? 'girl-theme' : 'boy-theme'}`}>
@@ -211,7 +219,7 @@ export default function DashboardView({
               <Zap size={20} className="fill-amber-400 text-amber-400" />
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/30 font-mono">
-              سطح ۳
+              سطح {formatToPersianDigits(currentUser.level || 1)}
             </span>
           </div>
           <div className="mt-2 space-y-0.5">
@@ -388,7 +396,9 @@ export default function DashboardView({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Compass size={18} className="text-amber-400 animate-spin-slow" />
-                <h3 className="text-xs sm:text-sm font-black text-white">نقشه مرکزی مراحل رشد (۷ مرحله سفر استراتژیک)</h3>
+                <h3 className="text-xs sm:text-sm font-black text-white">
+                  نقشه مرکزی مراحل رشد ({formatToPersianDigits(stagesList.length)} مرحله سفر استراتژیک)
+                </h3>
               </div>
               <button
                 onClick={() => onNavigate('Journey')}
@@ -400,7 +410,12 @@ export default function DashboardView({
             </div>
 
             {/* Visual Interactive Pipeline Standard Square Nodes */}
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
+            {stagesList.length === 0 ? (
+              <div className="py-6 text-center text-slate-400 text-xs">
+                مرحله‌ای در نقشه بازی ثبت نشده است (مدیر سامانه در پنل مدیریت می‌تواند مراحل را ثبت کند).
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
               {stagesList.map((st, i) => {
                 const Icon = st.icon;
                 const isCurrent = st.status === 'in_progress';
@@ -436,6 +451,7 @@ export default function DashboardView({
                 );
               })}
             </div>
+            )}
           </div>
 
           {/* Active Missions Grid with Standardized Card Formats */}

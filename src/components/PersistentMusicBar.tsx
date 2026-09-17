@@ -19,6 +19,7 @@ interface PersistentMusicBarProps {
 }
 
 export default function PersistentMusicBar({ hasBottomNav = false, isGirls = false }: PersistentMusicBarProps) {
+  const [hasTracks, setHasTracks] = useState<boolean>(() => battleMusicSynth.getHasActiveTracks());
   const [isPlaying, setIsPlaying] = useState<boolean>(() => battleMusicSynth.getIsRunning());
   const [currentTrack, setCurrentTrack] = useState<SoundtrackItem | null>(() => battleMusicSynth.getCurrentTrack());
   const [isHovered, setIsHovered] = useState(false);
@@ -26,35 +27,46 @@ export default function PersistentMusicBar({ hasBottomNav = false, isGirls = fal
 
   useEffect(() => {
     const handleMusicState = (e: any) => {
+      setHasTracks(battleMusicSynth.getHasActiveTracks());
       if (e.detail) {
         if (typeof e.detail.isRunning === 'boolean') {
           setIsPlaying(e.detail.isRunning);
         }
-        if (e.detail.track) {
+        if (e.detail.track !== undefined) {
           setCurrentTrack(e.detail.track);
         }
       }
     };
 
     const handleTrackChanged = (e: any) => {
-      if (e.detail) {
+      setHasTracks(battleMusicSynth.getHasActiveTracks());
+      if (e.detail !== undefined) {
         setCurrentTrack(e.detail);
       }
     };
 
+    const handleTracksUpdated = () => {
+      setHasTracks(battleMusicSynth.getHasActiveTracks());
+      setCurrentTrack(battleMusicSynth.getCurrentTrack());
+      setIsPlaying(battleMusicSynth.getIsRunning());
+    };
+
     window.addEventListener('warroom_music_state_changed' as any, handleMusicState);
     window.addEventListener('warroom_track_changed' as any, handleTrackChanged);
+    window.addEventListener('warroom_soundtracks_updated' as any, handleTracksUpdated);
 
     const interval = setInterval(() => {
+      setHasTracks(battleMusicSynth.getHasActiveTracks());
       setIsPlaying(battleMusicSynth.getIsRunning());
       const track = battleMusicSynth.getCurrentTrack();
       if (track) setCurrentTrack(track);
       setVolume(battleMusicSynth.getVolume());
-    }, 1200);
+    }, 800);
 
     return () => {
       window.removeEventListener('warroom_music_state_changed' as any, handleMusicState);
       window.removeEventListener('warroom_track_changed' as any, handleTrackChanged);
+      window.removeEventListener('warroom_soundtracks_updated' as any, handleTracksUpdated);
       clearInterval(interval);
     };
   }, []);
@@ -80,6 +92,11 @@ export default function PersistentMusicBar({ hasBottomNav = false, isGirls = fal
       setVolume(0.35);
     }
   };
+
+  // 🛑 اگر هیچ قطعه فعالی در سرور ثبت نشده باشد، آیکون به کلی از صفحه محو می‌شود
+  if (!hasTracks) {
+    return null;
+  }
 
   return (
     <div

@@ -131,8 +131,8 @@ export function useSyncedCollection<T extends { id: string }>(options: {
           }
           pendingSkipRef.current = true;
           setValue(rows);
-        } else if (table !== 'warroom_users' && initial && initial.length > 0) {
-          // اگر جدول خالی بود، داده‌های پیش‌فرض را در Supabase ثبت کن (به‌جز جدول کاربران)
+        } else if (table !== 'warroom_users' && table !== 'warroom_stages' && table !== 'warroom_prizes' && initial && initial.length > 0) {
+          // اگر جدول خالی بود، داده‌های پیش‌فرض را در Supabase ثبت کن (به‌جز کاربران، مراحل و جوایز)
           const rowsToInsert = await Promise.all(
             initial.map(r => normalizeRowForDb(table, { id: r.id, data: r }))
           );
@@ -317,4 +317,28 @@ export function useSyncedSetting<T extends Record<string, any>>(options: {
 
   return [value, setValue];
 }
+
+/* ------------------------------------------------------------------ */
+/* به‌روزرسانی آنی و تضمینی وضعیت، امتیازات و پیشرفت کاربر در Supabase  */
+/* ------------------------------------------------------------------ */
+export async function saveUserProgressToSupabase(user: any): Promise<boolean> {
+  if (!isSupabaseEnabled || !supabase || !user || !user.id) return false;
+  try {
+    const row = await normalizeRowForDb('warroom_users', {
+      id: user.id,
+      data: user,
+      updated_at: new Date().toISOString()
+    });
+    const { error } = await supabase.from('warroom_users').upsert(row);
+    if (error) {
+      console.warn('[WarRoom Supabase] خطا در ذخیره پیشرفت کاربر در دیتابیس:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[WarRoom Supabase] ذخیره وضعیت کاربر با استثنا مواجه شد:', err);
+    return false;
+  }
+}
+
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import { Send, MessageSquare, ExternalLink, HelpCircle, Map as MapIcon, BookOpen, Sparkles, CheckCircle } from 'lucide-react';
 
 interface SocialMessengersWidgetsProps {
@@ -28,13 +27,11 @@ export default function SocialMessengersWidgets({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         
         {/* Messenger 1: ایتا (Eitaa) - کانال هیس */}
-        <motion.div 
-          whileHover={{ y: -3, scale: 1.01 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-          className={`rounded-3xl p-4 sm:p-5 border transition-all flex flex-col justify-between ${
+        <div 
+          className={`rounded-3xl p-4 sm:p-5 border transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between ${
             isGirls
-              ? 'bg-gradient-to-br from-[#1d091b] to-[#0e040f] border-pink-500/40 shadow-[0_0_20px_rgba(255,19,137,0.15)]'
-              : 'bg-gradient-to-br from-[#0c162f] via-[#050b1a] to-[#140612] border-blue-900/50 hover:border-blue-500/60 shadow-[0_0_20px_rgba(37,99,235,0.15)]'
+              ? 'bg-gradient-to-br from-[#1d091b] to-[#0e040f] border-pink-500/40 shadow-[0_0_15px_rgba(255,19,137,0.12)]'
+              : 'bg-gradient-to-br from-[#0c162f] via-[#050b1a] to-[#140612] border-blue-900/50 hover:border-blue-500/60 shadow-[0_0_15px_rgba(37,99,235,0.12)]'
           }`}
         >
           <div className="space-y-2 mb-3">
@@ -55,24 +52,21 @@ export default function SocialMessengersWidgets({
             </p>
           </div>
 
-          <motion.button
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={() => handleOpenMessenger('ایتا (Eitaa)', 'https://eitaa.com/warroom')}
-            className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-md flex items-center justify-center gap-2 transition"
+            className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-md flex items-center justify-center gap-2 transition-transform duration-150 active:scale-[0.98] cursor-pointer"
           >
             <span>کانال اتاق جنگ در ایتا</span>
             <ExternalLink size={13} />
-          </motion.button>
-        </motion.div>
+          </button>
+        </div>
 
         {/* Messenger 2: بله (Bale) - کانال اتاق جنگ */}
-        <motion.div 
-          whileHover={{ y: -3, scale: 1.01 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-          className={`rounded-3xl p-4 sm:p-5 border transition-all flex flex-col justify-between ${
+        <div 
+          className={`rounded-3xl p-4 sm:p-5 border transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between ${
             isGirls
-              ? 'bg-gradient-to-br from-[#1d091b] to-[#0e040f] border-pink-500/40 shadow-[0_0_20px_rgba(255,19,137,0.15)]'
-              : 'bg-gradient-to-br from-[#0c162f] via-[#050b1a] to-[#140612] border-blue-900/50 hover:border-blue-500/60 shadow-[0_0_20px_rgba(37,99,235,0.15)]'
+              ? 'bg-gradient-to-br from-[#1d091b] to-[#0e040f] border-pink-500/40 shadow-[0_0_15px_rgba(255,19,137,0.12)]'
+              : 'bg-gradient-to-br from-[#0c162f] via-[#050b1a] to-[#140612] border-blue-900/50 hover:border-blue-500/60 shadow-[0_0_15px_rgba(37,99,235,0.12)]'
           }`}
         >
           <div className="space-y-2 mb-3">
@@ -93,10 +87,9 @@ export default function SocialMessengersWidgets({
             </p>
           </div>
 
-          <motion.button
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={() => handleOpenMessenger('بله (Bale)', 'https://ble.ir/warroom')}
-            className={`w-full py-2.5 rounded-2xl text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition ${
+            className={`w-full py-2.5 rounded-2xl text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-transform duration-150 active:scale-[0.98] cursor-pointer ${
               isGirls 
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950' 
                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
@@ -104,8 +97,8 @@ export default function SocialMessengersWidgets({
           >
             <span>کانال اتاق جنگ در بله</span>
             <ExternalLink size={13} />
-          </motion.button>
-        </motion.div>
+          </button>
+        </div>
 
       </div>
 
@@ -113,14 +106,12 @@ export default function SocialMessengersWidgets({
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         
         {/* Card 1: مراحل مسابقه */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.015 }}
-          whileTap={{ scale: 0.98 }}
+        <div 
           onClick={onOpenStages}
-          className={`cursor-pointer rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 border transition-all flex items-center justify-between group ${
+          className={`cursor-pointer rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 border transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-between group ${
             isGirls
-              ? 'bg-[#150718] border-pink-900/50 hover:border-pink-500/70 shadow-lg'
-              : 'bg-[#091228] border-blue-900/50 hover:border-blue-500/70 shadow-lg'
+              ? 'bg-[#150718] border-pink-900/50 hover:border-pink-500/70 shadow-md'
+              : 'bg-[#091228] border-blue-900/50 hover:border-blue-500/70 shadow-md'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -137,17 +128,15 @@ export default function SocialMessengersWidgets({
             </div>
           </div>
           <span className="text-xs text-slate-500 group-hover:text-white transition">←</span>
-        </motion.div>
+        </div>
 
         {/* Card 2: راهنمای مسابقه */}
-        <motion.div 
-          whileHover={{ y: -2, scale: 1.015 }}
-          whileTap={{ scale: 0.98 }}
+        <div 
           onClick={onOpenGuide}
-          className={`cursor-pointer rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 border transition-all flex items-center justify-between group ${
+          className={`cursor-pointer rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 border transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-between group ${
             isGirls
-              ? 'bg-[#150718] border-pink-900/50 hover:border-pink-500/70 shadow-lg'
-              : 'bg-[#091228] border-blue-900/50 hover:border-blue-500/70 shadow-lg'
+              ? 'bg-[#150718] border-pink-900/50 hover:border-pink-500/70 shadow-md'
+              : 'bg-[#091228] border-blue-900/50 hover:border-blue-500/70 shadow-md'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -164,7 +153,7 @@ export default function SocialMessengersWidgets({
             </div>
           </div>
           <span className="text-xs text-slate-500 group-hover:text-white transition">←</span>
-        </motion.div>
+        </div>
 
       </div>
 

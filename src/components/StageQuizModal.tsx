@@ -19,11 +19,11 @@ import {
   AlertTriangle,
   HelpCircle,
   Gem,
-  Check
+  Check,
+  Compass
 } from 'lucide-react';
-import { User } from '../types';
+import { User, JourneyStage } from '../types';
 import { getStageBadge } from '../data/stageBadges';
-import { JourneyStage } from './JourneyView';
 import { STAGE_QUESTIONS, StageQuestion } from '../data/stageQuestionsData';
 import { formatToPersianDigits } from '../utils/jalali';
 
@@ -220,12 +220,18 @@ export default function StageQuizModal({
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 p-0.5 shadow-md flex-shrink-0">
                 <div className="relative w-full h-full bg-[#070d1a] rounded-[14px] overflow-hidden flex items-center justify-center">
-                  <img
-                    src={getStageBadge(stage.iconName)}
-                    alt={`نشان مرحله ${stage.title}`}
-                    draggable={false}
-                    className="w-full h-full object-cover"
-                  />
+                  {stage.customIconUrl ? (
+                    <img
+                      src={stage.customIconUrl}
+                      alt={`نشان مرحله ${stage.title}`}
+                      draggable={false}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center text-cyan-400">
+                      <Compass size={24} />
+                    </div>
+                  )}
                   <span className="absolute bottom-0 inset-x-0 bg-black/60 text-cyan-300 font-mono font-black text-[9px] sm:text-[10px] text-center leading-tight py-0.5">
                     {formatToPersianDigits(stage.number)}
                   </span>

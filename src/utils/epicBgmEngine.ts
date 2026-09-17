@@ -131,87 +131,20 @@ export function playTacticalSound(type: 'click' | 'like' | 'comment' | 'correct'
 
 export type SynthTrackId = 'epic_march' | 'cyber_mission' | 'triumph_anthem' | 'strategic_zen';
 
-// Default soundtrack presets (includes both synthesizers and high quality audio links)
-export const DEFAULT_SOUNDTRACKS: SoundtrackItem[] = [
-  {
-    id: 'track-synth-march',
-    title: 'مارش حماسی اتاق جنگ',
-    subtitle: 'طبل‌های حماسی، شیپور و ملودی دلاورانه',
-    tag: 'حماسی / سینماتیک',
-    color: 'from-amber-500 to-yellow-400',
-    sourceType: 'synth',
-    synthTrackId: 'epic_march',
-    tempo: 120,
-    durationSeconds: 90,
-    is_active: true,
-    order: 1
-  },
-  {
-    id: 'track-url-epic-orchestra',
-    title: 'نوای فتح و افق افتخار',
-    subtitle: 'موسیقی ارکسترال حماسی با ضرب‌آهنگ پیروزی',
-    tag: 'ارکسترال / لینک صوتی',
-    color: 'from-orange-500 to-amber-400',
-    sourceType: 'url',
-    url: 'https://cdn.freesound.org/previews/563/563842_11861866-lq.mp3',
-    durationSeconds: 110,
-    is_active: true,
-    order: 2
-  },
-  {
-    id: 'track-synth-cyber',
-    title: 'سایبر مأموریت و رادار شبانه',
-    subtitle: 'آرپژهای الکترونیک و ریتم تپنده راداری مدرن',
-    tag: 'سایبر / الکترونیک',
-    color: 'from-cyan-500 to-blue-500',
-    sourceType: 'synth',
-    synthTrackId: 'cyber_mission',
-    tempo: 128,
-    durationSeconds: 90,
-    is_active: true,
-    order: 3
-  },
-  {
-    id: 'track-url-tactical-drums',
-    title: 'طبل‌های حماسی فتح خرمشهر',
-    subtitle: 'ریتم پرکاشن حماسی و رزمی میدانی',
-    tag: 'رزمی / لینک صوتی',
-    color: 'from-red-500 to-rose-400',
-    sourceType: 'url',
-    url: 'https://cdn.freesound.org/previews/612/612095_5674468-lq.mp3',
-    durationSeconds: 95,
-    is_active: true,
-    order: 4
-  },
-  {
-    id: 'track-synth-triumph',
-    title: 'سرود پیروزی و افتخار جوخه',
-    subtitle: 'هارمونی ماژور، زنگ‌های زرین و سرود فتح',
-    tag: 'افتخار / امیدبخش',
-    color: 'from-emerald-500 to-teal-400',
-    sourceType: 'synth',
-    synthTrackId: 'triumph_anthem',
-    tempo: 112,
-    durationSeconds: 90,
-    is_active: true,
-    order: 5
-  },
-  {
-    id: 'track-synth-zen',
-    title: 'تمرکز و تحلیل راهبردی',
-    subtitle: 'فضای آرامش‌بخش، هارمونی‌های عمیق و تفکر',
-    tag: 'آرامش / تمرکز',
-    color: 'from-purple-500 to-indigo-400',
-    sourceType: 'synth',
-    synthTrackId: 'strategic_zen',
-    tempo: 90,
-    durationSeconds: 120,
-    is_active: true,
-    order: 6
-  }
-];
+// 🛑 هیچ قطعه پیش‌فرضی به صورت هاردکد وجود ندارد. کلیه موسیقی‌ها باید توسط ادمین در پنل ایجاد و در Supabase ذخیره شوند.
+export const DEFAULT_SOUNDTRACKS: SoundtrackItem[] = [];
 
 export const TRACK_LIST = DEFAULT_SOUNDTRACKS; // backward compat
+
+// شناسه‌های قطعات پیش‌فرض قدیمی جهت پاک‌سازی خودکار در صورت وجود در حافظه مرورگر
+const LEGACY_DEFAULT_IDS = new Set([
+  'track-synth-march',
+  'track-url-epic-orchestra',
+  'track-synth-cyber',
+  'track-url-tactical-drums',
+  'track-synth-triumph',
+  'track-synth-zen'
+]);
 
 class UniversalAudioEngine {
   private ctx: AudioContext | null = null;
@@ -294,10 +227,16 @@ class UniversalAudioEngine {
     try {
       const savedList = localStorage.getItem('warroom_soundtracks');
       if (savedList) {
-        this.playlist = JSON.parse(savedList);
+        const parsed = JSON.parse(savedList);
+        const filtered = Array.isArray(parsed)
+          ? parsed.filter((t: any) => t && typeof t === 'object' && !LEGACY_DEFAULT_IDS.has(t.id))
+          : [];
+        this.playlist = filtered;
+        if (filtered.length !== (Array.isArray(parsed) ? parsed.length : 0)) {
+          localStorage.setItem('warroom_soundtracks', JSON.stringify(filtered));
+        }
       } else {
-        this.playlist = [...DEFAULT_SOUNDTRACKS];
-        localStorage.setItem('warroom_soundtracks', JSON.stringify(this.playlist));
+        this.playlist = [];
       }
 
       const savedSettings = localStorage.getItem('warroom_audio_settings');
@@ -306,18 +245,23 @@ class UniversalAudioEngine {
         if (parsed.playbackMode) this.playbackMode = parsed.playbackMode;
         if (parsed.defaultVolume !== undefined) this.volume = parsed.defaultVolume / 100;
         if (parsed.activeTrackId) {
-          const found = this.playlist.find(t => t.id === parsed.activeTrackId);
+          const found = this.playlist.find(t => t.id === parsed.activeTrackId && t.is_active);
           if (found) this.currentTrack = found;
         }
       }
 
       if (!this.currentTrack && this.playlist.length > 0) {
-        this.currentTrack = this.playlist.find(t => t.is_active) || this.playlist[0];
+        this.currentTrack = this.playlist.find(t => t.is_active) || null;
       }
     } catch {
-      this.playlist = [...DEFAULT_SOUNDTRACKS];
-      this.currentTrack = this.playlist[0];
+      this.playlist = [];
+      this.currentTrack = null;
     }
+  }
+
+  /** آیا حداقل یک قطعه فعال در لیست پخش وجود دارد؟ */
+  public getHasActiveTracks(): boolean {
+    return Boolean(Array.isArray(this.playlist) && this.playlist.length > 0 && this.playlist.some(t => t.is_active));
   }
 
   private setupAudioElement() {
@@ -374,18 +318,41 @@ class UniversalAudioEngine {
   }
 
   public setPlaylist(newPlaylist: SoundtrackItem[]) {
-    this.playlist = newPlaylist;
+    this.playlist = Array.isArray(newPlaylist) ? newPlaylist : [];
     try {
-      localStorage.setItem('warroom_soundtracks', JSON.stringify(newPlaylist));
-      window.dispatchEvent(new CustomEvent('warroom_soundtracks_updated', { detail: newPlaylist }));
+      localStorage.setItem('warroom_soundtracks', JSON.stringify(this.playlist));
+      window.dispatchEvent(new CustomEvent('warroom_soundtracks_updated', { detail: this.playlist }));
     } catch {}
     pushMusicStateToSupabase(); // 📡 همگام‌سازی با Supabase
 
-    // Check if current track was removed or deactivated
+    // اگر هیچ قطعه فعالی باقی نمانده است، موسیقی قطع شده و کلیه ارجاعات پاک می‌شوند
+    if (!this.getHasActiveTracks()) {
+      this.stopAllAudio();
+      this.isRunning = false;
+      this.currentTrack = null;
+      try {
+        localStorage.setItem('warroom_music_enabled', 'false');
+      } catch {}
+      window.dispatchEvent(new CustomEvent('warroom_music_state_changed', { 
+        detail: { isRunning: false, track: null } 
+      }));
+      window.dispatchEvent(new CustomEvent('warroom_track_changed', { detail: null }));
+      return;
+    }
+
+    // بررسی اینکه آیا ترک فعلی حذف یا غیرفعال شده است
     if (this.currentTrack && !this.playlist.some(t => t.id === this.currentTrack?.id && t.is_active)) {
       const firstActive = this.playlist.find(t => t.is_active);
       if (firstActive) {
-        this.playTrack(firstActive);
+        if (this.isRunning) {
+          this.playTrack(firstActive);
+        } else {
+          this.currentTrack = firstActive;
+        }
+      } else {
+        this.stopAllAudio();
+        this.isRunning = false;
+        this.currentTrack = null;
       }
     }
   }
@@ -533,6 +500,14 @@ class UniversalAudioEngine {
   }
 
   public start() {
+    // اگر هیچ قطعه فعالی در سرور یا لیست وجود ندارد، هیچ موسیقی‌ای پخش نمی‌شود
+    if (!this.getHasActiveTracks()) {
+      this.stopAllAudio();
+      this.isRunning = false;
+      this.currentTrack = null;
+      return;
+    }
+
     // Strictly prevent starting if already running - ONE track only!
     if (this.isRunning) return;
 
@@ -541,10 +516,13 @@ class UniversalAudioEngine {
     } catch {}
 
     const track = this.getCurrentTrack();
-    if (track) {
+    if (track && track.is_active) {
       this.playTrack(track);
-    } else if (this.playlist.length > 0) {
-      this.playTrack(this.playlist[0]);
+    } else {
+      const firstActive = this.playlist.find(t => t.is_active);
+      if (firstActive) {
+        this.playTrack(firstActive);
+      }
     }
   }
 
@@ -1115,6 +1093,26 @@ function pushMusicStateToSupabase(): void {
   }, 1200);
 }
 
+/** ذخیره‌ی فوری و بدون تاخیر لیست موسیقی در Supabase (جهت استفاده در پنل ادمین) */
+export async function syncSoundtracksNow(playlist: SoundtrackItem[]): Promise<void> {
+  if (!isSupabaseEnabled || !supabase) return;
+  try {
+    const localSettings = readLocalAudioSettings();
+    const settings: Record<string, any> = {
+      ...localSettings,
+      playbackMode: battleMusicSynth.getPlaybackMode(),
+      activeTrackId: battleMusicSynth.getCurrentTrack()?.id || '',
+      defaultVolume: Math.round(battleMusicSynth.getVolume() * 100)
+    };
+    await Promise.all([
+      supabase.from('warroom_kv').upsert({ id: 'soundtracks', value: { items: playlist } }),
+      supabase.from('warroom_kv').upsert({ id: 'audio_settings', value: settings })
+    ]);
+  } catch (err) {
+    console.warn('[WarRoom] همگام‌سازی فوری موسیقی با Supabase ناموفق بود:', err);
+  }
+}
+
 /** بارگذاری اولیه‌ی لیست موسیقی و تنظیمات از ابر (اگر ادمین تغییری کرده باشد) */
 (async () => {
   if (!isSupabaseEnabled || !supabase) return;
@@ -1128,9 +1126,15 @@ function pushMusicStateToSupabase(): void {
       : undefined;
     const remoteSettings: Record<string, any> | null = (settingsRow?.value as any) || null;
 
-    if (items && items.length > 0) {
-      battleMusicSynth.setPlaylist(items);
+    if (Array.isArray(items)) {
+      // حذف هرگونه قطعات تست قدیمی و بارگذاری لیست واقعی دریافتی از سرور
+      const cleanItems = items.filter(t => t && !LEGACY_DEFAULT_IDS.has(t.id));
+      battleMusicSynth.setPlaylist(cleanItems);
+    } else {
+      // در صورتی که در Supabase هنوز هیچ آهنگی تعریف نشده باشد، لیست خالی است
+      battleMusicSynth.setPlaylist([]);
     }
+
     if (remoteSettings) {
       if (remoteSettings.playbackMode) {
         battleMusicSynth.setPlaybackMode(remoteSettings.playbackMode);

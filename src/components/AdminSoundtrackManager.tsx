@@ -26,7 +26,7 @@ import {
 import { SoundtrackItem, AudioPlaybackMode } from '../types';
 import { 
   battleMusicSynth, 
-  DEFAULT_SOUNDTRACKS, 
+  syncSoundtracksNow,
   playTacticalSound, 
   getAudioContext 
 } from '../utils/epicBgmEngine';
@@ -112,27 +112,31 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
       return item;
     });
 
-    // Ensure at least one track remains active
-    if (!updated.some(t => t.is_active)) {
-      triggerAlert('حداقل یک قطعه باید در حالت فعال باقی بماند.');
-      return;
-    }
-
     setPlaylist(updated);
     battleMusicSynth.setPlaylist(updated);
+    syncSoundtracksNow(updated);
     triggerAlert('وضعیت فعال‌سازی قطعه به‌روزرسانی شد.');
   };
 
   const handleDelete = (id: string) => {
-    if (playlist.length <= 1) {
-      triggerAlert('امکان حذف آخرین قطعه وجود ندارد. لیست نباید خالی باشد.');
-      return;
-    }
-
     const updated = playlist.filter(t => t.id !== id);
     setPlaylist(updated);
     battleMusicSynth.setPlaylist(updated);
-    triggerAlert('قطعه موسیقی با موفقیت از لیست پخش سراسری حذف شد.');
+    syncSoundtracksNow(updated);
+    if (updated.length === 0) {
+      triggerAlert('کلیه قطعات حذف شدند. هم‌اکنون هیچ موسیقی‌ای پخش نمی‌شود و آیکون شناور کنار صفحه محو شد.');
+    } else {
+      triggerAlert('قطعه موسیقی با موفقیت از لیست پخش سراسری حذف شد.');
+    }
+  };
+
+  const handleClearAllTracks = () => {
+    if (window.confirm('آیا از حذف تمام قطعات موسیقی اطمینان دارید؟ با این کار هیچ آهنگی پخش نخواهد شد و آیکون کناری صفحه نیز محو می‌شود.')) {
+      setPlaylist([]);
+      battleMusicSynth.setPlaylist([]);
+      syncSoundtracksNow([]);
+      triggerAlert('تمامی قطعات موسیقی با موفقیت پاک شدند و سیستم صوتی در حالت خاموش قرار گرفت.');
+    }
   };
 
   const handleMoveOrder = (index: number, direction: 'up' | 'down') => {
@@ -226,6 +230,7 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
     const updated = [...playlist, newTrack];
     setPlaylist(updated);
     battleMusicSynth.setPlaylist(updated);
+    syncSoundtracksNow(updated);
 
     // Reset Form
     setNewTitle('');
@@ -237,15 +242,7 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
       setTestingUrl(false);
     }
 
-    triggerAlert(`🎵 قطعه «${newTrack.title}» با موفقیت به رادیو و موسیقی اتاق جنگ افزوده شد و به صورت پیش‌فرض در چرخه پخش قرار گرفت.`);
-  };
-
-  const handleResetToDefaults = () => {
-    if (window.confirm('آیا از بازنشانی لیست موسیقی‌ها به قطعات پیش‌فرض سیستم اطمینان دارید؟')) {
-      setPlaylist(DEFAULT_SOUNDTRACKS);
-      battleMusicSynth.setPlaylist(DEFAULT_SOUNDTRACKS);
-      triggerAlert('لیست قطعات به تنظیمات اولیه پیش‌فرض بازگردانی شد.');
-    }
+    triggerAlert(`🎵 قطعه «${newTrack.title}» با موفقیت افزوده و در سرور Supabase ذخیره گردید.`);
   };
 
   return (
@@ -268,22 +265,25 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
                 </span>
               </h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                تنظیم حالت پخش هوشمند (رندم، ترتیبی، تکرار)، افزودن موسیقی بر اساس لینک مستقیم صوتی (MP3/WAV) یا موتور سینت سایزر زنده.
+                تنظیم حالت پخش، افزودن موسیقی بر اساس لینک صوتی مستقیم (MP3/WAV) یا موتور سینت سایزر. کلیه اطلاعات مستقیماً در Supabase ذخیره می‌شوند.
               </p>
             </div>
           </div>
 
-          {/* Quick Stats & Default Reset */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleResetToDefaults}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-amber-400 text-xs font-bold transition cursor-pointer"
-              title="بازگردانی قطعات اصلی پیش‌فرض"
-            >
-              <RefreshCw size={13} />
-              <span>بازنشانی پیش‌فرض</span>
-            </button>
-          </div>
+          {/* Clear All Button if tracks exist */}
+          {playlist.length > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleClearAllTracks}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-rose-300 hover:text-white hover:border-rose-500 text-xs font-bold transition cursor-pointer"
+                title="پاکسازی تمام قطعات و خاموش کردن کامل رادیو"
+              >
+                <Trash2 size={13} />
+                <span>پاکسازی همه آهنگ‌ها</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Global Playback Mode Selector Box */}
@@ -550,7 +550,19 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
 
             {/* List */}
             <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1 custom-scrollbar">
-              {playlist.map((track, index) => {
+              {playlist.length === 0 ? (
+                <div className="text-center py-12 px-4 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mx-auto shadow-inner">
+                    <Music size={24} />
+                  </div>
+                  <h5 className="text-sm font-black text-white">هیچ قطعه موسیقی ثبت نشده است</h5>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    هم‌اکنون رادیو کاملاً خاموش بوده و هیچ موسیقی در سرور وجود ندارد. همچنین آیکون موسیقی در کنار صفحه برای همه کاربران محو شده است.
+                    برای پخش آهنگ، از فرم سمت راست یک قطعه صوتی یا شبیه‌ساز اضافه کنید.
+                  </p>
+                </div>
+              ) : (
+                playlist.map((track, index) => {
                 const isCurrentActive = track.id === currentActiveId;
 
                 return (
@@ -667,7 +679,8 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
 
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
 
           </div>

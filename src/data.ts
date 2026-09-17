@@ -9,26 +9,7 @@ import { User, Group, Mission, MissionSubmission, Training, Medal, UserMedal, Su
  *    تنها حساب مدیر کل توسط بک‌اند ساخته می‌شود؛ رمز نخستین ورود از متغیر
  *    محیطی WARROOM_ADMIN_INITIAL_PASSWORD تعیین و تغییر آن اجباری است.
  */
-export const initialUsers: User[] = [
-  {
-    id: 'u-admin',
-    first_name: 'امیرحسین',
-    last_name: 'فرماندهی کل',
-    national_code: '0012345678',
-    phone: '09120000000',
-    password: 'Admin@123456',
-    role: 'admin',
-    education_level: 'متوسطه دوم',
-    grade: 'دوازدهم',
-    gender: 'پسر',
-    province: 'تهران',
-    city: 'تهران',
-    birth_date: '1384/01/15',
-    school_name: 'دبیرستان ماندگار البرز',
-    personal_code: '900000001',
-    address: 'ستاد مرکزی اتاق جنگ'
-  }
-];
+export const initialUsers: User[] = [];
 
 export const initialGroups: Group[] = [];
 

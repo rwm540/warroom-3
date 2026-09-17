@@ -64,6 +64,7 @@ import {
   Image,
   Trophy,
   Gem,
+  Gift,
   Play,
   Layout,
   X,
@@ -110,7 +111,11 @@ import {
   Gender,
   EducationLevel,
   TargetRole,
-  HomeButtonConfig
+  HomeButtonConfig,
+  JourneyStage,
+  StageQuizQuestion,
+  DailyChallengeConfig,
+  PrizeItem
 } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { playNotificationSound } from '../utils/audioAlert';
@@ -156,6 +161,11 @@ interface AdminPanelProps {
   // 🆕 درگاه‌های بازی — همگام با Supabase
   gamePortals: GamePortal[];
   setGamePortals: React.Dispatch<React.SetStateAction<GamePortal[]>>;
+  // 🆕 مراحل نقشه بازی و چالش روزانه — همگام با Supabase
+  stages?: JourneyStage[];
+  setStages?: React.Dispatch<React.SetStateAction<JourneyStage[]>>;
+  dailyChallengeConfig?: DailyChallengeConfig;
+  setDailyChallengeConfig?: React.Dispatch<React.SetStateAction<DailyChallengeConfig>>;
   onBroadcastNotification?: (notif: AppNotification) => void;
   triggerAlert: (msg: string) => void;
   siteSettings: any;
@@ -169,6 +179,8 @@ interface AdminPanelProps {
   /** 🛡️ درخواست‌های تغییر رمز (حالت محلی — همگام با Supabase در صورت پیکربندی) */
   passwordResetRequests: PasswordResetRequest[];
   setPasswordResetRequests: React.Dispatch<React.SetStateAction<PasswordResetRequest[]>>;
+  prizes?: PrizeItem[];
+  setPrizes?: React.Dispatch<React.SetStateAction<PrizeItem[]>>;
   onNavigate?: (tab: string) => void;
 }
 
@@ -201,6 +213,10 @@ export default function AdminPanel({
   setVitrinPosts,
   gamePortals = [],
   setGamePortals,
+  stages = [],
+  setStages,
+  dailyChallengeConfig,
+  setDailyChallengeConfig,
   onBroadcastNotification,
   triggerAlert,
   siteSettings,
@@ -213,10 +229,12 @@ export default function AdminPanel({
   setFaqs,
   passwordResetRequests = [],
   setPasswordResetRequests,
+  prizes = [],
+  setPrizes,
   onNavigate
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets'
+    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets' | 'stage_builder' | 'prizes'
   >('submissions');
 
   // 🛡️ وضعیت بک‌اند امن (برای مدیریت امن رمز کاربران)
@@ -230,7 +248,104 @@ export default function AdminPanel({
   // رمز یک‌بارمصرف نمایش‌داده‌شده پس از ایجاد/بازنشانی کاربر (هرگز ذخیره نمی‌شود)
   const [oneTimeCredential, setOneTimeCredential] = useState<{ title: string; password: string } | null>(null);
 
-  // 📡 GAME PORTALS MANAGEMENT STATE — از State سراسری (همگام با Supabase)
+  // 🎁 PRIZES & AWARDS MANAGEMENT STATE
+  const [showPrizeModal, setShowPrizeModal] = useState<boolean>(false);
+  const [editingPrize, setEditingPrize] = useState<PrizeItem | null>(null);
+  const [prizeForm, setPrizeForm] = useState<{
+    title: string;
+    category: string;
+    requiredPoints: number;
+    imageUrl: string;
+    stockCount: number;
+    tag: string;
+  }>({
+    title: '',
+    category: 'gaming',
+    requiredPoints: 5000,
+    imageUrl: 'https://images.unsplash.com/photo-1621259182978-fbf93132d53d?w=600&auto=format&fit=crop&q=80',
+    stockCount: 10,
+    tag: 'جایزه ویژه'
+  });
+
+  const handleOpenCreatePrize = () => {
+    setEditingPrize(null);
+    setPrizeForm({
+      title: '',
+      category: 'gaming',
+      requiredPoints: 5000,
+      imageUrl: 'https://images.unsplash.com/photo-1621259182978-fbf93132d53d?w=600&auto=format&fit=crop&q=80',
+      stockCount: 10,
+      tag: 'جایزه ویژه'
+    });
+    setShowPrizeModal(true);
+  };
+
+  const handleOpenEditPrize = (prize: PrizeItem) => {
+    setEditingPrize(prize);
+    setPrizeForm({
+      title: prize.title,
+      category: prize.category,
+      requiredPoints: prize.requiredPoints,
+      imageUrl: prize.imageUrl,
+      stockCount: prize.stockCount,
+      tag: prize.tag
+    });
+    setShowPrizeModal(true);
+  };
+
+  const handleSavePrize = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setPrizes) return;
+
+    if (!prizeForm.title.trim()) {
+      triggerAlert('لطفاً عنوان جایزه را وارد نمایید.');
+      return;
+    }
+
+    if (editingPrize) {
+      setPrizes(prev => prev.map(p => p.id === editingPrize.id ? {
+        ...p,
+        title: prizeForm.title,
+        category: prizeForm.category,
+        requiredPoints: Number(prizeForm.requiredPoints) || 0,
+        imageUrl: prizeForm.imageUrl,
+        stockCount: Number(prizeForm.stockCount) || 1,
+        tag: prizeForm.tag
+      } : p));
+      triggerAlert(`جایزه «${prizeForm.title}» به‌روزرسانی شد.`);
+    } else {
+      const newPrize: PrizeItem = {
+        id: `prize_${Date.now()}`,
+        title: prizeForm.title,
+        category: prizeForm.category,
+        requiredPoints: Number(prizeForm.requiredPoints) || 0,
+        imageUrl: prizeForm.imageUrl,
+        stockCount: Number(prizeForm.stockCount) || 1,
+        tag: prizeForm.tag,
+        isAvailable: true
+      };
+      setPrizes(prev => [newPrize, ...prev]);
+      triggerAlert(`جایزه جدید «${prizeForm.title}» اضافه گردید.`);
+    }
+
+    setShowPrizeModal(false);
+  };
+
+  const handleDeletePrize = (id: string, title: string) => {
+    if (!setPrizes) return;
+    if (window.confirm(`آیا از حذف جایزه «${title}» اطمینان دارید؟`)) {
+      setPrizes(prev => prev.filter(p => p.id !== id));
+      triggerAlert(`جایزه «${title}» حذف شد.`);
+    }
+  };
+
+  const handleClearAllPrizes = () => {
+    if (!setPrizes) return;
+    if (window.confirm('آیا از حذف تمامی جوایز اطمینان دارید؟ با این کار ویترین جوایز کاملاً خالی خواهد شد.')) {
+      setPrizes([]);
+      triggerAlert('تمامی جوایز با موفقیت حذف شدند.');
+    }
+  };
   const portals = gamePortals;
   const setPortals = setGamePortals;
   const [showPortalModal, setShowPortalModal] = useState<boolean>(false);
@@ -529,6 +644,180 @@ export default function AdminPanel({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
+
+  // 🗺️ STAGE BUILDER & DAILY CHALLENGE STATES
+  const [showStageModal, setShowStageModal] = useState<boolean>(false);
+  const [editingStage, setEditingStage] = useState<JourneyStage | null>(null);
+  const [showSqlScriptModal, setShowSqlScriptModal] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
+
+  const [stageForm, setStageForm] = useState<{
+    id: string;
+    number: number;
+    title: string;
+    subtitle: string;
+    status: 'completed' | 'in_progress' | 'locked';
+    iconName: 'flag' | 'heart' | 'shield' | 'service' | 'users' | 'shrine' | 'star' | 'trophy';
+    customIconUrl: string;
+    requiredPoints: number;
+    description: string;
+    missionsCount: number;
+    completedMissions: number;
+    xOffsetPercent: number;
+    quizQuestions: StageQuizQuestion[];
+  }>({
+    id: '',
+    number: 1,
+    title: '',
+    subtitle: '',
+    status: 'locked',
+    iconName: 'flag',
+    customIconUrl: '',
+    requiredPoints: 0,
+    description: '',
+    missionsCount: 1,
+    completedMissions: 0,
+    xOffsetPercent: 0,
+    quizQuestions: []
+  });
+
+  // Daily Challenge State in Admin Panel
+  const [dailyForm, setDailyForm] = useState<DailyChallengeConfig>(() => {
+    return dailyChallengeConfig || {
+      id: 'daily_challenge_main',
+      title: 'چالش تاکتیکی روزانه',
+      description: 'با پاسخ به این تست هوش عمیق، ۱۵۰ امتیاز پاداش دریافت کنید.',
+      pointsReward: 150,
+      questionText: 'اولین شرط گام برداشتن در مسیر خادمی شهدایی و نبرد سایبری چیست؟',
+      options: [
+        'داشتن تجهیزات مدرن',
+        'اخلاص در نیت و خودسازی فردی',
+        'شناخت رقبا',
+        'شروع بدون برنامه‌ریزی'
+      ],
+      correctOptionIndex: 1,
+      isActive: true
+    };
+  });
+
+  useEffect(() => {
+    if (dailyChallengeConfig) {
+      setDailyForm(dailyChallengeConfig);
+    }
+  }, [dailyChallengeConfig]);
+
+  const handleOpenAddStage = () => {
+    setEditingStage(null);
+    setStageForm({
+      id: `s_${Date.now()}`,
+      number: (stages?.length || 0) + 1,
+      title: '',
+      subtitle: '',
+      status: 'locked',
+      iconName: 'flag',
+      customIconUrl: '',
+      requiredPoints: ((stages?.length || 0) + 1) * 500,
+      description: '',
+      missionsCount: 2,
+      completedMissions: 0,
+      xOffsetPercent: (stages?.length || 0) % 2 === 0 ? 20 : -20,
+      quizQuestions: []
+    });
+    setShowStageModal(true);
+  };
+
+  const handleOpenEditStage = (stg: JourneyStage) => {
+    setEditingStage(stg);
+    setStageForm({
+      id: stg.id,
+      number: stg.number,
+      title: stg.title,
+      subtitle: stg.subtitle || '',
+      status: stg.status,
+      iconName: stg.iconName || 'flag',
+      customIconUrl: stg.customIconUrl || '',
+      requiredPoints: stg.requiredPoints || 0,
+      description: stg.description || '',
+      missionsCount: stg.missionsCount || 1,
+      completedMissions: stg.completedMissions || 0,
+      xOffsetPercent: stg.xOffsetPercent || 0,
+      quizQuestions: stg.quizQuestions || []
+    });
+    setShowStageModal(true);
+  };
+
+  const handleSaveStage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stageForm.title.trim()) {
+      triggerAlert('خطا: عنوان مرحله الزامی است.');
+      return;
+    }
+
+    const savedStage: JourneyStage = {
+      id: stageForm.id || `s_${Date.now()}`,
+      number: Number(stageForm.number) || 1,
+      title: stageForm.title.trim(),
+      subtitle: stageForm.subtitle.trim(),
+      status: stageForm.status,
+      iconName: stageForm.iconName,
+      customIconUrl: stageForm.customIconUrl.trim() || undefined,
+      requiredPoints: Number(stageForm.requiredPoints) || 0,
+      description: stageForm.description.trim(),
+      missionsCount: Number(stageForm.missionsCount) || 1,
+      completedMissions: Number(stageForm.completedMissions) || 0,
+      xOffsetPercent: Number(stageForm.xOffsetPercent) || 0,
+      quizQuestions: stageForm.quizQuestions
+    };
+
+    if (setStages) {
+      if (editingStage) {
+        setStages(prev => prev.map(s => s.id === editingStage.id ? savedStage : s));
+        triggerAlert(`مرحله «${savedStage.title}» با موفقیت ویرایش گردید.`);
+      } else {
+        setStages(prev => [...prev, savedStage]);
+        triggerAlert(`مرحله جدید «${savedStage.title}» به مسیر بازی اضافه شد.`);
+      }
+    }
+    setShowStageModal(false);
+  };
+
+  const handleDeleteStage = (stg: JourneyStage) => {
+    if (window.confirm(`آیا از حذف مرحله «${stg.title}» مطمئن هستید؟`)) {
+      if (setStages) {
+        setStages(prev => prev.filter(s => s.id !== stg.id));
+        triggerAlert(`مرحله «${stg.title}» حذف گردید.`);
+      }
+    }
+  };
+
+  const handleSaveDailyChallenge = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (setDailyChallengeConfig) {
+      setDailyChallengeConfig(dailyForm);
+      triggerAlert('پیکربندی چالش روزانه با موفقیت در Supabase ذخیره گردید.');
+    }
+  };
+
+  const handleStageIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Strict 1 MB limit
+    if (file.size > 1024 * 1024) {
+      triggerAlert('خطا: سایز آیکون/تصویر مرحله نباید بیشتر از ۱ مگابایت باشد.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setStageForm(prev => ({ ...prev, customIconUrl: reader.result as string }));
+        triggerAlert('تصویر آیکون اختصاصی مرحله با موفقیت انتخاب شد.');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // USER CRUD & DETAIL MODAL STATES
@@ -1577,6 +1866,19 @@ export default function AdminPanel({
         </button>
 
         <button
+          onClick={() => setActiveAdminTab('stage_builder')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl whitespace-nowrap shrink-0 transition border relative ${
+            activeAdminTab === 'stage_builder' 
+              ? 'bg-gradient-to-r from-cyan-500 via-amber-400 to-emerald-500 text-slate-950 border-amber-400 font-black shadow-[0_0_20px_rgba(6,182,212,0.5)]' 
+              : 'bg-[#080d21] text-cyan-300 border-cyan-500/40 hover:border-cyan-400 hover:text-white'
+          }`}
+          id="btn-tab-stage-builder"
+        >
+          <MapPin size={15} className="text-cyan-400" />
+          <span>ایجاد مسیر و مراحل ({stages.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveAdminTab('missions')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl whitespace-nowrap shrink-0 transition border ${
             activeAdminTab === 'missions' 
@@ -1586,6 +1888,19 @@ export default function AdminPanel({
         >
           <Target size={15} />
           <span>تعریف مأموریت‌ها ({missions.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('prizes')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl whitespace-nowrap shrink-0 transition border relative ${
+            activeAdminTab === 'prizes' 
+              ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 border-amber-400 font-black shadow-[0_0_20px_rgba(245,158,11,0.5)]' 
+              : 'bg-[#080d21] text-amber-300 border-amber-500/40 hover:border-amber-400 hover:text-white'
+          }`}
+          id="btn-tab-prizes"
+        >
+          <Gift size={15} className="text-amber-400" />
+          <span>ویترین جایزه‌ها ({prizes.filter(p => !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9'].includes(p.id)).length})</span>
         </button>
 
         <button
@@ -2778,6 +3093,259 @@ export default function AdminPanel({
                     >
                       <Check size={16} />
                       <span>{editingMission ? 'ذخیره تغییرات مأموریت' : 'ایجاد و انتشار مأموریت'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🎁 PRIZES & AWARDS SHOWCASE MANAGEMENT TAB */}
+      {activeAdminTab === 'prizes' && (
+        <div className="space-y-6">
+          <div className="bg-[#080d21] border border-amber-500/40 p-5 rounded-2xl space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                  <Gift size={22} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white">مدیریت ویترین جایزه‌ها</h3>
+                  <p className="text-xs text-slate-400">تعریف، ویرایش، حذف و تنظیم کریستال‌ها و امتیازات مورد نیاز برای جوایز سامانه</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {prizes.filter(p => !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9'].includes(p.id)).length > 0 && (
+                  <button
+                    onClick={handleClearAllPrizes}
+                    className="px-3.5 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900 border border-red-800/80 text-red-300 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="حذف کلیه جوایز موجود"
+                  >
+                    <Trash2 size={15} />
+                    <span>پاکسازی همه جوایز</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleOpenCreatePrize}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs transition shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>افزودن جایزه جدید</span>
+                </button>
+              </div>
+            </div>
+
+            {(() => {
+              const cleanPrizes = prizes.filter(p => !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9'].includes(p.id));
+              if (cleanPrizes.length === 0) {
+                return (
+                  <div className="text-center py-12 px-4 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-3">
+                    <Gift size={32} className="text-amber-400 mx-auto opacity-80" />
+                    <h4 className="text-sm font-bold text-white">هنوز جایزه‌ای ثبت نشده است</h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                      هیچ جایزه‌ای در سامانه وجود ندارد. لطفاً با زدن دکمه زیر، جایزه و امتیاز مورد نیاز آن را تعریف کنید تا در ویترین جایزه‌ها برای رزمندگان نمایش داده شود.
+                    </p>
+                    <button
+                      onClick={handleOpenCreatePrize}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition cursor-pointer"
+                    >
+                      ایجاد اولین جایزه
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {cleanPrizes.map((prize) => (
+                    <div
+                      key={prize.id}
+                      className="bg-slate-950/80 border border-slate-800 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col justify-between space-y-3 transition shadow-md"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            {prize.tag || 'جایزه اختصاصی'}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            موجودی: {formatToPersianDigits(prize.stockCount)} عدد
+                          </span>
+                        </div>
+
+                        <div className="aspect-video w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800 relative">
+                          <img 
+                            src={prize.imageUrl} 
+                            alt={prize.title} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                        </div>
+
+                        <h4 className="text-xs font-bold text-white line-clamp-2">{prize.title}</h4>
+                        
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
+                          <span className="text-slate-400">کریستال / امتیاز لازم:</span>
+                          <span className="text-amber-300 font-black font-mono">
+                            {formatToPersianDigits(prize.requiredPoints)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <button
+                          onClick={() => handleOpenEditPrize(prize)}
+                          className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 size={13} />
+                          <span>ویرایش</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeletePrize(prize.id, prize.title)}
+                          className="p-1.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-400 transition cursor-pointer"
+                          title="حذف جایزه"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Modal for Creating / Editing Prize */}
+          {showPrizeModal && (
+            <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 dir-rtl overflow-y-auto">
+              <div className="bg-[#0b1226] border border-amber-500/50 rounded-3xl p-5 sm:p-6 max-w-lg w-full space-y-4 text-white shadow-2xl relative my-auto max-h-[85vh] sm:max-h-[88vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-sm sm:text-base font-black text-amber-300 flex items-center gap-2">
+                    <Gift size={18} />
+                    <span>{editingPrize ? 'ویرایش جایزه' : 'افزودن جایزه جدید'}</span>
+                  </h3>
+                  <button
+                    onClick={() => setShowPrizeModal(false)}
+                    className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSavePrize} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">عنوان کامل جایزه:</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: تبلت هوشمند دانش‌آموزی، کنسول بازی، بسته هدیه فرهنگی..."
+                      value={prizeForm.title}
+                      onChange={(e) => setPrizeForm({ ...prizeForm, title: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">دسته‌بندی:</label>
+                      <select
+                        value={prizeForm.category}
+                        onChange={(e) => setPrizeForm({ ...prizeForm, category: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                      >
+                        <option value="gaming">گیمینگ و کنسول</option>
+                        <option value="digital">تبلت و دوربین</option>
+                        <option value="gadgets">گجت‌های هوشمند</option>
+                        <option value="gear">تجهیزات و رصد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">کریستال / امتیاز لازم:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={prizeForm.requiredPoints}
+                        onChange={(e) => setPrizeForm({ ...prizeForm, requiredPoints: Number(e.target.value) })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">تعداد موجودی:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={prizeForm.stockCount}
+                        onChange={(e) => setPrizeForm({ ...prizeForm, stockCount: Number(e.target.value) })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">برچسب روی کارت:</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: جایزه ویژه کشور"
+                        value={prizeForm.tag}
+                        onChange={(e) => setPrizeForm({ ...prizeForm, tag: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-300">آدرس تصویر (URL):</label>
+                    <input
+                      type="text"
+                      placeholder="https://..."
+                      value={prizeForm.imageUrl}
+                      onChange={(e) => setPrizeForm({ ...prizeForm, imageUrl: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[10px] text-slate-400 self-center">تصاویر پیشنهادی سریع:</span>
+                      {[
+                        { label: 'کنسول گیمینگ', url: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=600&auto=format&fit=crop&q=80' },
+                        { label: 'تبلت هوشمند', url: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80' },
+                        { label: 'دوربین عکاسی', url: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&auto=format&fit=crop&q=80' },
+                        { label: 'ساعت هوشمند', url: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=600&auto=format&fit=crop&q=80' },
+                        { label: 'هدفون گیمینگ', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80' },
+                        { label: 'بسته هدیه نفیس', url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop&q=80' },
+                      ].map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setPrizeForm({ ...prizeForm, imageUrl: preset.url })}
+                          className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 transition"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPrizeModal(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-slate-300 hover:bg-slate-700"
+                    >
+                      انصراف
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black"
+                    >
+                      ذخیره جایزه
                     </button>
                   </div>
                 </form>
@@ -5553,6 +6121,422 @@ export default function AdminPanel({
                 <span>{editingVitrinPost ? 'ذخیره تغییرات' : 'ایجاد ویترین'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 14. 🗺️ STAGE & PATH BUILDER TAB (مدیریت مراحل نقشه و چالش روزانه)       */}
+      {/* ==================================================================== */}
+      {activeAdminTab === 'stage_builder' && (
+        <div className="space-y-6 dir-rtl font-sans">
+          
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-[#031520] via-[#082333] to-[#020d14] border border-cyan-500/30 rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
+            <div className="absolute -left-10 -top-10 w-48 h-48 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold">
+                  <MapPin size={15} className="animate-pulse text-cyan-400" />
+                  <span>مدیریت ساختار مراحل و چالش روزانه — همگام با Supabase</span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-white">ایجاد و ویرایش مراحل نقشه بازی و چالش روزانه</h2>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                  در این بخش تمامی مراحل نقشه سفر، آیکون و نشان‌ها، امتیاز لازم، سوالات کوییز و چالش روزانه به صورت پویا تعریف می‌شوند. تمامی تغییرات بلافاصله در پایگاه داده <span className="text-emerald-400 font-bold">Supabase</span> و نقشه کاربران ثبت و همگام‌سازی می‌گردند.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={handleOpenAddStage}
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs transition shadow-lg shadow-cyan-500/20 flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  <span>افزودن مرحله جدید</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1: Daily Challenge Configuration */}
+          <div className="bg-[#080d21] border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                  <Zap size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">مدیریت چالش تاکتیکی روزانه</h3>
+                  <p className="text-[11px] text-slate-400">تنظیم سوال و پاداش امتیاز چالش روزانه رزمندگان</p>
+                </div>
+              </div>
+
+              <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                dailyForm.isActive 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+              }`}>
+                {dailyForm.isActive ? 'چالش فعال است' : 'چالش غیرفعال'}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveDailyChallenge} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">عنوان چالش</label>
+                  <input
+                    type="text"
+                    value={dailyForm.title}
+                    onChange={e => setDailyForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    placeholder="چالش تاکتیکی روزانه"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">پاداش امتیاز (Points)</label>
+                  <input
+                    type="number"
+                    value={dailyForm.pointsReward}
+                    onChange={e => setDailyForm(prev => ({ ...prev, pointsReward: Number(e.target.value) || 0 }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">توضیحات مختصر</label>
+                  <input
+                    type="text"
+                    value={dailyForm.description}
+                    onChange={e => setDailyForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">متن سوال چالش روزانه *</label>
+                  <input
+                    type="text"
+                    value={dailyForm.questionText}
+                    onChange={e => setDailyForm(prev => ({ ...prev, questionText: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl px-3 py-2.5 text-xs text-white outline-none"
+                    placeholder="متن سوال را وارد نمایید..."
+                  />
+                </div>
+
+                {dailyForm.options.map((opt, optIdx) => (
+                  <div key={optIdx}>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-slate-400">گزینه {optIdx + 1}</label>
+                      <label className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="correct_option"
+                          checked={dailyForm.correctOptionIndex === optIdx}
+                          onChange={() => setDailyForm(prev => ({ ...prev, correctOptionIndex: optIdx }))}
+                          className="accent-amber-400"
+                        />
+                        <span className="text-[10px] text-amber-300">پاسخ صحیح</span>
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={e => {
+                        const newOpts = [...dailyForm.options];
+                        newOpts[optIdx] = e.target.value;
+                        setDailyForm(prev => ({ ...prev, options: newOpts }));
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-2"
+                >
+                  <Check size={14} />
+                  <span>ذخیره چالش روزانه در Supabase</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Section 2: Stages Management List */}
+          <div className="bg-[#080d21] border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <MapPin size={16} className="text-cyan-400" />
+                  <span>لیست مراحل نقشه بازی ({stages.length} مرحله)</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">مراحل و مسیر تاکتیکی به صورت پویا از پایگاه داده پشتیبانی می‌شوند</p>
+              </div>
+
+              <button
+                onClick={handleOpenAddStage}
+                className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition shadow flex items-center gap-1.5 self-start sm:self-auto"
+              >
+                <Plus size={14} />
+                <span>افزودن مرحله جدید</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {stages.map((stg) => (
+                <div
+                  key={stg.id}
+                  className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 hover:border-cyan-500/50 transition flex flex-col justify-between gap-3 group relative overflow-hidden"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-cyan-950/80 border border-cyan-500/30 flex items-center justify-center shrink-0 overflow-hidden shadow">
+                        {stg.customIconUrl ? (
+                          <img src={stg.customIconUrl} alt={stg.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-cyan-400 font-black text-base">مـ{stg.number}</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold text-cyan-400 px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/20">
+                            مرحله {stg.number}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            stg.status === 'completed'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : stg.status === 'in_progress'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}>
+                            {stg.status === 'completed' ? 'تکمیل شده' : stg.status === 'in_progress' ? 'در حال انجام' : 'قفل'}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-black text-white mt-1">{stg.title}</h4>
+                        <p className="text-[11px] text-slate-400 line-clamp-1">{stg.subtitle}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 line-clamp-2 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60">
+                    {stg.description || 'بدون توضیحات'}
+                  </p>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2.5">
+                    <div>
+                      <span>امتیاز لازم: </span>
+                      <strong className="text-amber-300 font-mono">{stg.requiredPoints}</strong>
+                    </div>
+                    <div>
+                      <span>مأموریت‌ها: </span>
+                      <strong className="text-cyan-300 font-mono">{stg.missionsCount}</strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => handleOpenEditStage(stg)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold transition flex items-center gap-1"
+                    >
+                      <Edit3 size={13} />
+                      <span>ویرایش</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteStage(stg)}
+                      className="px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/30 text-rose-300 text-xs font-bold transition flex items-center gap-1"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* MODAL 1: STAGE EDITOR MODAL (ویرایش و افزودن مرحله)                 */}
+      {/* ==================================================================== */}
+      {showStageModal && (
+        <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 dir-rtl font-sans overflow-y-auto">
+          <div className="bg-[#0b1329] border border-cyan-500/40 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950/80">
+              <div className="flex items-center gap-2.5">
+                <span className="w-10 h-10 rounded-2xl bg-cyan-950 text-cyan-400 border border-cyan-500/40 flex items-center justify-center">
+                  <MapPin size={20} />
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-white">{editingStage ? `ویرایش مرحله «${editingStage.title}»` : 'ایجاد مرحله جدید'}</h3>
+                  <p className="text-[10px] text-cyan-300">پیکربندی هوشمند و همگام با Supabase</p>
+                </div>
+              </div>
+              <button onClick={() => setShowStageModal(false)} className="p-1.5 rounded-full bg-slate-900 text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <form id="stage-editor-form" onSubmit={handleSaveStage} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">شماره مرحله (Order) *</label>
+                  <input
+                    type="number"
+                    value={stageForm.number}
+                    onChange={e => setStageForm(prev => ({ ...prev, number: Number(e.target.value) || 1 }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none font-mono"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">عنوان مرحله *</label>
+                  <input
+                    type="text"
+                    value={stageForm.title}
+                    onChange={e => setStageForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="مثلاً: معرفت و آمادگی"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">زیرعنوان مرحله</label>
+                  <input
+                    type="text"
+                    value={stageForm.subtitle}
+                    onChange={e => setStageForm(prev => ({ ...prev, subtitle: e.target.value }))}
+                    placeholder="شناخت مبانی و تعالیم"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">امتیاز مورد نیاز (Required Points)</label>
+                  <input
+                    type="number"
+                    value={stageForm.requiredPoints}
+                    onChange={e => setStageForm(prev => ({ ...prev, requiredPoints: Number(e.target.value) || 0 }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">تعداد مأموریت‌ها</label>
+                  <input
+                    type="number"
+                    value={stageForm.missionsCount}
+                    onChange={e => setStageForm(prev => ({ ...prev, missionsCount: Number(e.target.value) || 1 }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">وضعیت اولیه مرحله</label>
+                  <select
+                    value={stageForm.status}
+                    onChange={e => setStageForm(prev => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  >
+                    <option value="completed">تکمیل شده (Completed)</option>
+                    <option value="in_progress">در حال انجام (In Progress)</option>
+                    <option value="locked">قفل شده (Locked)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">انحراف افقی روی جاده نقشه (xOffsetPercent %)</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="-30"
+                      max="30"
+                      value={stageForm.xOffsetPercent}
+                      onChange={e => setStageForm(prev => ({ ...prev, xOffsetPercent: Number(e.target.value) }))}
+                      className="w-full accent-cyan-400 cursor-pointer"
+                    />
+                    <span className="text-xs font-mono font-bold text-cyan-300 shrink-0 w-12 text-center">
+                      {stageForm.xOffsetPercent}%
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">مقدار منفی = انحراف به چپ، ۰ = مرکز، مقدار مثبت = انحراف به راست روی نقشه</p>
+                </div>
+
+                <div className="sm:col-span-2 space-y-2 border-t border-slate-800/80 pt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-300">تصویر یا آیکون اختصاصی مرحله (کمتر از ۱ مگابایت)</label>
+                    <span className="text-[10px] text-amber-400">حداکثر ۱ مگابایت</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-2xl border border-slate-800">
+                    <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
+                      {stageForm.customIconUrl ? (
+                        <img src={stageForm.customIconUrl} alt="آیکون" className="w-full h-full object-cover" />
+                      ) : (
+                        <Image size={20} className="text-slate-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <input
+                        type="text"
+                        value={stageForm.customIconUrl}
+                        onChange={e => setStageForm(prev => ({ ...prev, customIconUrl: e.target.value }))}
+                        placeholder="لینک آدرس مستقیم تصویر یا آپلود فایل..."
+                        className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-400 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                      />
+                    </div>
+                    <label className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs cursor-pointer transition shrink-0 flex items-center gap-1">
+                      <Upload size={14} />
+                      <span>آپلود</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleStageIconUpload} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">توضیحات کامل مرحله</label>
+                  <textarea
+                    rows={3}
+                    value={stageForm.description}
+                    onChange={e => setStageForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="شرح اهداف، شایستگی‌ها و مأموریت‌های این مرحله..."
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-400 rounded-xl p-3 text-xs text-white outline-none"
+                  />
+                </div>
+
+              </div>
+            </form>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2.5 bg-slate-950/80">
+              <button
+                type="button"
+                onClick={() => setShowStageModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-slate-300 text-xs font-bold hover:text-white"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const form = document.getElementById('stage-editor-form') as HTMLFormElement | null;
+                  if (form) form.requestSubmit();
+                }}
+                className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-1.5"
+              >
+                <Check size={14} />
+                <span>ذخیره مرحله در Supabase</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

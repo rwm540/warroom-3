@@ -6,7 +6,7 @@ import {
   Lock, 
   Trophy
 } from 'lucide-react';
-import { User, Group, Medal, UserMedal } from '../types';
+import { User, Group, Medal, UserMedal, PrizeItem } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import RewardsLeaderboardView from './RewardsLeaderboardView';
 
@@ -16,20 +16,10 @@ interface PrizesPointsViewProps {
   groups?: Group[];
   medals?: Medal[];
   userMedals?: UserMedal[];
+  prizes?: PrizeItem[];
   initialSubTab?: 'prizes' | 'leaderboard';
   triggerAlert: (msg: string) => void;
   onNavigate?: (tab: string) => void;
-}
-
-export interface PrizeItem {
-  id: string;
-  title: string;
-  category: string;
-  requiredPoints: number;
-  imageUrl: string;
-  tag: string;
-  isAvailable: boolean;
-  stockCount: number;
 }
 
 export default function PrizesPointsView({
@@ -38,6 +28,7 @@ export default function PrizesPointsView({
   groups = [],
   medals = [],
   userMedals = [],
+  prizes = [],
   initialSubTab = 'prizes',
   triggerAlert,
   onNavigate
@@ -56,105 +47,14 @@ export default function PrizesPointsView({
   }, [selectedPrize]);
 
   const isGirls = currentUser?.gender === 'دختر' || localStorage.getItem('hisstory_theme_mode') === 'girls';
-  const userPoints = currentUser ? 1850 : 500; // Mock current points
+  const userPoints = currentUser?.points || 0;
 
-  // Grid of 9 specified high-end prizes with images and required points
-  const prizesList: PrizeItem[] = [
-    {
-      id: 'p1',
-      title: 'ساعت هوشمند اسپرت (Smartwatch)',
-      category: 'gadgets',
-      requiredPoints: 2500,
-      imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=600&q=80',
-      tag: 'محبوب‌ترین',
-      isAvailable: true,
-      stockCount: 120
-    },
-    {
-      id: 'p2',
-      title: 'کنسول بازی نسل ۹ (Xbox Series X)',
-      category: 'gaming',
-      requiredPoints: 9500,
-      imageUrl: 'https://images.unsplash.com/photo-1605901309584-818e25960a8f?auto=format&fit=crop&w=600&q=80',
-      tag: 'جایزه ویژه فرمانده',
-      isAvailable: true,
-      stockCount: 15
-    },
-    {
-      id: 'p3',
-      title: 'تبلت دانش‌آموزی ۱۰ اینچ با قلم',
-      category: 'digital',
-      requiredPoints: 6000,
-      imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=600&q=80',
-      tag: 'کمک‌آموزشی',
-      isAvailable: true,
-      stockCount: 45
-    },
-    {
-      id: 'p4',
-      title: 'دوربین عکاسی و فیلمبرداری دیجیتال',
-      category: 'digital',
-      requiredPoints: 5200,
-      imageUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80',
-      tag: 'تولید محتوا',
-      isAvailable: true,
-      stockCount: 30
-    },
-    {
-      id: 'p5',
-      title: 'هدست واقعیت مجازی (VR Headset)',
-      category: 'gaming',
-      requiredPoints: 7800,
-      imageUrl: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?auto=format&fit=crop&w=600&q=80',
-      tag: 'هیجان متاورس',
-      isAvailable: true,
-      stockCount: 20
-    },
-    {
-      id: 'p6',
-      title: 'کوادکوپتر تصویربرداری هوایی (Drone)',
-      category: 'gadgets',
-      requiredPoints: 8500,
-      imageUrl: 'https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?auto=format&fit=crop&w=600&q=80',
-      tag: 'اکتشافی',
-      isAvailable: true,
-      stockCount: 25
-    },
-    {
-      id: 'p7',
-      title: 'هدفون گیمینگ بلوتوثی نویزکنسلینگ',
-      category: 'gaming',
-      requiredPoints: 3400,
-      imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
-      tag: 'صدای ۳ بعدی',
-      isAvailable: true,
-      stockCount: 80
-    },
-    {
-      id: 'p8',
-      title: 'کوله تاکتیکی و پک امدادی اتاق جنگ',
-      category: 'gear',
-      requiredPoints: 1900,
-      imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80',
-      tag: 'تجهیزات رزم',
-      isAvailable: true,
-      stockCount: 150
-    },
-    {
-      id: 'p9',
-      title: 'تلسکوپ نجومی آماتوری رصد ستارگان',
-      category: 'gear',
-      requiredPoints: 4800,
-      imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
-      tag: 'علمی و نجومی',
-      isAvailable: true,
-      stockCount: 40
-    }
-  ];
+  // فیلتر کردن جوایز پیش‌فرض قدیمی هاردکد شده — نمایش صرفاً جوایز واقعی تعریف شده توسط ادمین در Supabase
+  const effectivePrizes = prizes.filter(p => !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9'].includes(p.id));
 
   const filteredPrizes = selectedCategory === 'all' 
-    ? prizesList 
-    : prizesList.filter(p => p.category === selectedCategory);
+    ? effectivePrizes 
+    : effectivePrizes.filter(p => p.category === selectedCategory);
 
   const handleClaimPrize = (prize: PrizeItem) => {
     if (userPoints < prize.requiredPoints) {
@@ -168,7 +68,7 @@ export default function PrizesPointsView({
   return (
     <div className="space-y-6 dir-rtl pb-28 max-w-5xl mx-auto px-3 sm:px-6 pt-4 font-sans select-none">
       
-      {/* 2. Main Tab Switcher: "ویترین ۹ جایزه رویایی" vs "جدول رده‌بندی" */}
+      {/* 2. Main Tab Switcher: "ویترین جایزه‌ها" vs "جدول رده‌بندی" */}
       <div className="grid grid-cols-2 gap-2 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
         <button
           onClick={() => setActiveSubTab('prizes')}
@@ -181,7 +81,7 @@ export default function PrizesPointsView({
           }`}
         >
           <Gift size={16} />
-          <span className="truncate">ویترین ۹ جایزه رویایی</span>
+          <span className="truncate">ویترین جایزه‌ها {effectivePrizes.length > 0 ? `(${formatToPersianDigits(effectivePrizes.length)})` : ''}</span>
         </button>
 
         <button
@@ -199,14 +99,14 @@ export default function PrizesPointsView({
         </button>
       </div>
 
-      {/* 3. Sub Tab 1: 9-Item Prizes Grid */}
+      {/* 3. Sub Tab 1: Prizes Grid */}
       {activeSubTab === 'prizes' && (
         <div className="space-y-4">
           
           {/* Categories Bar */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
             {[
-              { id: 'all', label: 'همه ۹ جایزه' },
+              { id: 'all', label: effectivePrizes.length > 0 ? `همه جایزه‌ها (${formatToPersianDigits(effectivePrizes.length)})` : 'همه جایزه‌ها' },
               { id: 'gaming', label: 'گیمینگ و کنسول' },
               { id: 'digital', label: 'تبلت و دوربین' },
               { id: 'gadgets', label: 'گجت‌های هوشمند' },
@@ -228,9 +128,29 @@ export default function PrizesPointsView({
             ))}
           </div>
 
-          {/* 9-Item Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {filteredPrizes.map((prize) => {
+          {/* Prizes Grid or Empty State */}
+          {filteredPrizes.length === 0 ? (
+            <div className="text-center py-16 px-4 bg-[#091126]/60 rounded-3xl border border-slate-800/80 space-y-3">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                <Gift size={32} />
+              </div>
+              <h3 className="text-base font-black text-white">هنوز جایزه‌ای ثبت نشده است</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                جوایز و کریستال‌های لازم توسط مدیر سامانه در پنل مدیریت تعریف و فعال می‌شوند.
+              </p>
+              {currentUser?.role === 'admin' && onNavigate && (
+                <button
+                  onClick={() => onNavigate('admin')}
+                  className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition shadow-lg cursor-pointer"
+                >
+                  <Trophy size={14} />
+                  <span>تعریف و مدیریت جوایز در پنل ادمین</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              {filteredPrizes.map((prize) => {
               const isUnlocked = userPoints >= prize.requiredPoints;
               return (
                 <div
@@ -320,6 +240,7 @@ export default function PrizesPointsView({
               );
             })}
           </div>
+          )}
 
         </div>
       )}

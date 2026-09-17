@@ -29,6 +29,7 @@ export interface User {
   avatar_url?: string;
   level?: number;
   points?: number;
+  completed_stages?: string[];
 }
 
 export interface Group {
@@ -42,6 +43,7 @@ export interface Group {
   city: string;
   registration_code: string; // کد ثبت‌نام جوخه
   created_at: string;
+  points?: number;
 }
 
 export interface Mission {
@@ -106,6 +108,55 @@ export interface GamePortal {
   featured?: boolean;
 }
 
+export interface StageQuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+}
+
+export interface JourneyStage {
+  id: string;
+  number: number;
+  title: string;
+  subtitle: string;
+  status: 'completed' | 'in_progress' | 'locked';
+  iconName: 'flag' | 'heart' | 'shield' | 'service' | 'users' | 'shrine' | 'star' | 'trophy' | 'custom' | string;
+  customIconUrl?: string;
+  customBannerUrl?: string;
+  requiredPoints: number;
+  description: string;
+  missionsCount: number;
+  completedMissions: number;
+  bgThemeUrl?: string;
+  xOffsetPercent: number; // Position on winding map path
+  quizQuestions?: StageQuizQuestion[];
+}
+
+export interface DailyChallengeConfig {
+  id: string;
+  title: string;
+  description: string;
+  badge: string;
+  pointsReward: number;
+  question: string;
+  options: string[];
+  correctOptionIndex: number;
+  isActive: boolean;
+  bannerUrl?: string;
+}
+
+export interface PrizeItem {
+  id: string;
+  title: string;
+  category: string;
+  requiredPoints: number;
+  imageUrl: string;
+  tag: string;
+  isAvailable?: boolean;
+  stockCount: number;
+}
+
 export interface Medal {
   id: string;
   name: string;
@@ -117,6 +168,7 @@ export interface Medal {
 
 export interface UserMedal {
   id: string;
+  user_id?: string;
   personal_code: string;
   medal_id: string;
   medal_name?: string;

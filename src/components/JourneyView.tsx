@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -45,10 +45,11 @@ import {
   School,
   Bookmark
 } from 'lucide-react';
-import { User, Mission, MissionSubmission, Group, Medal, UserMedal } from '../types';
+import { User, Mission, MissionSubmission, Group, Medal, UserMedal, JourneyStage } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { getSavedPostIds } from '../data/vitrinData';
 import { getStageBadge } from '../data/stageBadges';
+import { initialJourneyStages } from '../data/initialStages';
 import SavedVitrinReelsModal from './SavedVitrinReelsModal';
 import StageQuizModal from './StageQuizModal';
 import DailyChallengeModal from './DailyChallengeModal';
@@ -57,6 +58,7 @@ import tacticalMapBg from '../assets/images/tactical_war_map_background_17873519
 
 interface JourneyViewProps {
   currentUser: User | null;
+  stages?: JourneyStage[];
   onEnterDashboard: (stageId?: string) => void;
   triggerAlert: (msg: string) => void;
   onOpenNotifications?: () => void;
@@ -72,26 +74,13 @@ interface JourneyViewProps {
   initialOpenProfile?: boolean;
   /** نقشه تاکتیکی فقط داخل بورد مسیر بازی نمایش داده شود؛ پس‌زمینه کل صفحه همیشه همان بنفش قبلی است */
   showMapBackground?: boolean;
-}
-
-export interface JourneyStage {
-  id: string;
-  number: number;
-  title: string;
-  subtitle: string;
-  status: 'completed' | 'in_progress' | 'locked';
-  iconName: 'flag' | 'heart' | 'shield' | 'service' | 'users' | 'shrine' | 'star' | 'trophy';
-  requiredPoints: number;
-  description: string;
-  missionsCount: number;
-  completedMissions: number;
-  bgThemeUrl?: string;
-  // Position along the curved winding road (% from left, % from top in relative layout)
-  xOffsetPercent: number; // 0 is center, -30 is left, +30 is right
+  onStageCompleted?: (stageId: string, earnedPoints: number) => void;
+  onAwardDailyPoints?: (points: number) => void;
 }
 
 export default function JourneyView({
   currentUser,
+  stages: stagesProp = [],
   onEnterDashboard,
   triggerAlert,
   onOpenNotifications,
@@ -105,7 +94,9 @@ export default function JourneyView({
   userMedals = [],
   onUpdateAvatar,
   initialOpenProfile = false,
-  showMapBackground = true
+  showMapBackground = true,
+  onStageCompleted,
+  onAwardDailyPoints
 }: JourneyViewProps) {
   const [selectedStage, setSelectedStage] = useState<JourneyStage | null>(null);
   const [activeTabSub, setActiveTabSub] = useState<'journey' | 'journal' | 'prayer'>('journey');
@@ -231,122 +222,130 @@ export default function JourneyView({
     triggerAlert('آواتار پروفایل شما با موفقیت به‌روزرسانی شد.');
   };
 
-  // 7 Defined Journey Stages following the exact reference photo ("مسیر سفر")
-  const stages: JourneyStage[] = [
-    {
-      id: 's1',
-      number: 1,
-      title: 'آغاز مسیر',
-      subtitle: 'نیت خالصانه و ثبت‌نام اولیه در کاروان',
-      status: 'completed',
-      iconName: 'flag',
-      requiredPoints: 0,
-      description: 'گام نخست حضور در کاروان و حرکت در مسیر نورانی. در این مرحله رزمنده ثبت‌نام خود را قطعی کرده و با مرام‌نامه و اهداف آشنا می‌شود.',
-      missionsCount: 2,
-      completedMissions: 2,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: 0 // Top center
-    },
-    {
-      id: 's2',
-      number: 2,
-      title: 'معرفت',
-      subtitle: 'شناخت مبانی، بصیرت و تعالیم استراتژیک',
-      status: 'completed',
-      iconName: 'heart',
-      requiredPoints: 300,
-      description: 'کسب معرفت و بینش عمیق نسبت به آرمان‌ها. رزمنده در این مرحله با مطالعه متون راهنما و پاسخ به سوالات فکری، شایستگی لازم را احراز می‌کند.',
-      missionsCount: 3,
-      completedMissions: 3,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: -28 // Curves left
-    },
-    {
-      id: 's3',
-      number: 3,
-      title: 'آمادگی',
-      subtitle: 'مهارت‌افزایی و سازماندهی نیروها',
-      status: 'completed',
-      iconName: 'shield',
-      requiredPoints: 750,
-      description: 'آمادگی روحی، جسمی و تشکیلاتی جهت انجام عملیات‌های مشترک و فعالیت‌های جهادی.',
-      missionsCount: 3,
-      completedMissions: 3,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: 22 // Curves right
-    },
-    {
-      id: 's4',
-      number: 4,
-      title: 'خدمت',
-      subtitle: 'امدادرسانی و بسته‌های کمک مؤمنانه',
-      status: 'in_progress',
-      iconName: 'service',
-      requiredPoints: 1400,
-      description: 'مشارکت در خدمت‌رسانی به نیازمندان، توزیع ارزاق و اجرای برنامه‌های خیرخواهانه جهادی.',
-      missionsCount: 4,
-      completedMissions: 1,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: -22 // Curves left
-    },
-    {
-      id: 's5',
-      number: 5,
-      title: 'همراهی',
-      subtitle: 'همدلی تیمی، جوخه‌بندی و مأموریت میدانی',
-      status: 'locked',
-      iconName: 'users',
-      requiredPoints: 2200,
-      description: 'هم‌افزایی جوخه‌ای، تقویت پیوندهای برادری و هماهنگی عملیاتی با سایر ارکان ستاد.',
-      missionsCount: 3,
-      completedMissions: 0,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: 18 // Curves right
-    },
-    {
-      id: 's6',
-      number: 6,
-      title: 'زیارت',
-      subtitle: 'میثاق با شهدا و حضور در اماکن مقدس',
-      status: 'locked',
-      iconName: 'shrine',
-      requiredPoints: 3400,
-      description: 'تجدید بیعت با آرمان‌های والای شهدا و بهره‌مندی از فیوضات معنوی زیارت.',
-      missionsCount: 3,
-      completedMissions: 0,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: -18 // Curves left
-    },
-    {
-      id: 's7',
-      number: 7,
-      title: 'سفیر عشق',
-      subtitle: 'کسب نشان خادمی و پیروزی نهایی',
-      status: 'locked',
-      iconName: 'trophy',
-      requiredPoints: 5000,
-      description: 'رسیدن به بالاترین مرتبه خادمی و سفارت جهادی، دریافت مدال زرین و گواهینامه معتبر ستاد.',
-      missionsCount: 2,
-      completedMissions: 0,
-      bgThemeUrl: tacticalMapBg,
-      xOffsetPercent: 20 // Curves right
-    }
-  ];
+  const handleAvatarUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  // رندر نشان تصویری (بج سپر) هر مرحله — جایگزین آیکون‌های ساده قبلی
-  const renderStageIcon = (iconName: string, status: string) => {
-    const badgeSrc = getStageBadge(iconName);
+    // Strict 1 MB limit
+    const MAX_SIZE_BYTES = 1024 * 1024; // 1 MB
+    if (file.size > MAX_SIZE_BYTES) {
+      triggerAlert('خطا: سایز تصویر آواتار نباید بیشتر از ۱ مگابایت باشد.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        handleSaveAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // مراحل نقشه بازی منحصراً از دیتابیس ابری Supabase دریافت می‌شود
+  const stages: JourneyStage[] = stagesProp !== undefined ? stagesProp : initialJourneyStages;
+
+  // محاسبه پویای وضعیت هر مرحله بر اساس پیشرفت و امتیازات واقعی رزمنده در Supabase
+  const userCompletedStageIds = Array.isArray(currentUser?.completed_stages) ? currentUser.completed_stages : [];
+  const userPoints = currentUser?.points || 0;
+
+  const activeStages = useMemo(() => {
+    return stages.map((stage, idx) => {
+      const isCompletedByUser = userCompletedStageIds.includes(stage.id);
+      let dynamicStatus: 'completed' | 'in_progress' | 'locked' = stage.status;
+
+      if (currentUser) {
+        if (isCompletedByUser) {
+          dynamicStatus = 'completed';
+        } else {
+          // اولین مرحله یا مرحله‌ای که پیش‌نیاز آن تکمیل شده، در حال انجام است
+          const prevStage = idx > 0 ? stages[idx - 1] : null;
+          const prevCompleted = !prevStage || userCompletedStageIds.includes(prevStage.id);
+          if (prevCompleted || userPoints >= stage.requiredPoints) {
+            dynamicStatus = 'in_progress';
+          } else {
+            dynamicStatus = 'locked';
+          }
+        }
+      }
+      return { ...stage, status: dynamicStatus };
+    });
+  }, [stages, userCompletedStageIds, userPoints, currentUser]);
+
+  const completedStagesCount = activeStages.filter(s => s.status === 'completed').length;
+  const pathProgressPercent = activeStages.length > 0 
+    ? Math.min(100, Math.round((completedStagesCount / activeStages.length) * 100)) 
+    : 0;
+
+  // Track map container scroll to show animated scroll guide when overflowed (> 7 stages)
+  const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
+
+  // Dynamic calculations for map height & S-curve road path
+  const stageCount = activeStages.length;
+  const stageGapY = stageCount <= 7 ? 75 : 85;
+  const mapCanvasHeight = stageCount <= 7 
+    ? Math.max(480, stageCount * stageGapY + 50)
+    : stageCount * stageGapY + 60;
+
+  const checkMapScroll = React.useCallback(() => {
+    const el = mapScrollContainerRef.current;
+    if (!el || stageCount <= 7) {
+      setCanScrollDown(false);
+      return;
+    }
+    const isOverflowing = el.scrollHeight > el.clientHeight + 15;
+    const isNotAtBottom = el.scrollTop + el.clientHeight < el.scrollHeight - 25;
+    setCanScrollDown(isOverflowing && isNotAtBottom);
+  }, [stageCount]);
+
+  useEffect(() => {
+    // Check scroll state after mount & image rendering
+    const timer = setTimeout(checkMapScroll, 100);
+    const el = mapScrollContainerRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkMapScroll);
+      window.addEventListener('resize', checkMapScroll);
+    }
+    return () => {
+      clearTimeout(timer);
+      if (el) {
+        el.removeEventListener('scroll', checkMapScroll);
+        window.removeEventListener('resize', checkMapScroll);
+      }
+    };
+  }, [stageCount, checkMapScroll]);
+
+  const roadPathD = React.useMemo(() => {
+    if (stageCount <= 0) return '';
+    if (stageCount === 1) return `M 200 40 L 200 ${mapCanvasHeight - 40}`;
+
+    const points = Array.from({ length: stageCount }, (_, i) => {
+      const y = 45 + i * stageGapY;
+      const x = i === 0 ? 200 : i % 2 === 1 ? 120 : 280;
+      return { x, y };
+    });
+
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const midY = (prev.y + curr.y) / 2;
+      d += ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
+    }
+    return d;
+  }, [stageCount, stageGapY, mapCanvasHeight]);
+
+  // رندر آیکون/بج تصویری مرحله (تصویر سفارشی ادمین یا بج تصویری استاندارد مرحله)
+  const renderStageIcon = (iconName: string, status: string, customIconUrl?: string) => {
+    const badgeSrc = customIconUrl || getStageBadge(iconName);
     return (
       <img
         src={badgeSrc}
         alt="نشان مرحله"
         draggable={false}
         className={`w-full h-full object-cover rounded-full transition-all duration-300 ${
-          status === 'locked'
-            ? 'grayscale opacity-60'
-            : status === 'in_progress'
-            ? 'opacity-95'
-            : 'opacity-100'
+          status === 'locked' ? 'grayscale opacity-60' : 'opacity-100'
         }`}
       />
     );
@@ -526,7 +525,7 @@ export default function JourneyView({
             </div>
           </header>
 
-          {/* Stats Bar (4 Columns: سطح شما, امتیاز کل, نشان‌ها, درصد مسیر) */}
+          {/* Stats Bar (4 Columns: سطح شما, امتیاز کل, نشان‌ها, درصد مسیر) — کاملاً پویا از Supabase */}
           <section className="shrink-0 grid grid-cols-4 gap-1.5 sm:gap-2 bg-[#0d1524]/90 border border-slate-800/80 rounded-xl p-1.5 sm:p-2 backdrop-blur-md shadow-md">
             
             {/* 1. سطح شما */}
@@ -535,7 +534,7 @@ export default function JourneyView({
               <div className="flex items-center gap-1">
                 <span className="text-slate-500 text-[10px] font-mono">🔰</span>
                 <strong className="text-xs sm:text-sm md:text-base font-black text-white font-mono">
-                  {formatToPersianDigits(currentUser?.level || 3)}
+                  {formatToPersianDigits(currentUser?.level || 1)}
                 </strong>
               </div>
             </div>
@@ -546,7 +545,7 @@ export default function JourneyView({
               <div className="flex items-center gap-1 text-amber-400">
                 <Star size={13} className="fill-amber-400 shrink-0" />
                 <strong className="text-xs sm:text-sm md:text-base font-black font-mono">
-                  {formatToPersianDigits(currentUser?.points || 2480)}
+                  {formatToPersianDigits(currentUser?.points || 0)}
                 </strong>
               </div>
             </div>
@@ -564,7 +563,7 @@ export default function JourneyView({
               <div className="flex items-center gap-1 text-cyan-400">
                 <Trophy size={13} className="shrink-0 group-hover:scale-110 transition" />
                 <strong className="text-xs sm:text-sm md:text-base font-black font-mono">
-                  {formatToPersianDigits(earnedUserMedals.length || 4)}
+                  {formatToPersianDigits(earnedUserMedals.length)}
                 </strong>
               </div>
             </div>
@@ -584,7 +583,7 @@ export default function JourneyView({
                     />
                     <path
                       className="text-emerald-500"
-                      strokeDasharray="64, 100"
+                      strokeDasharray={`${pathProgressPercent}, 100`}
                       strokeWidth="4"
                       strokeLinecap="round"
                       stroke="currentColor"
@@ -594,7 +593,7 @@ export default function JourneyView({
                   </svg>
                 </div>
                 <strong className="text-xs sm:text-sm font-black font-mono">
-                  {formatToPersianDigits(64)}٪
+                  {formatToPersianDigits(pathProgressPercent)}٪
                 </strong>
               </div>
             </div>
@@ -602,313 +601,285 @@ export default function JourneyView({
           </section>
         </div>
 
-        {/* ========================================================================= */}
-        {/* 2.5 QUICK DAILY CHALLENGE BANNER / MENU (بنر دسترسی سریع چالش روزانه)     */}
-        {/* ========================================================================= */}
-        <div className="w-full max-w-lg mx-auto px-1 shrink-0">
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowDailyChallengeModal(true)}
-            className="w-full p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-amber-950/90 via-[#180e03]/95 to-rose-950/80 border border-amber-500/60 hover:border-amber-400 shadow-[0_4px_25px_rgba(245,158,11,0.3)] flex items-center justify-between gap-2.5 cursor-pointer transition-all group"
-            title="ورود به چالش روزانه و دریافت ۱۵۰ امتیاز"
-          >
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/25 border border-amber-400/80 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover:scale-105 transition">
-                <Flame size={22} className="text-amber-400 animate-bounce" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-xs sm:text-sm font-black text-amber-300 truncate">
-                    چالش روزانه اتاق جنگ
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500 text-white animate-pulse shrink-0 shadow-sm">
-                    امروز فعال
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-[11px] text-amber-100/80 font-medium truncate mt-0.5">
-                  ماموریت روزانه استراتژیک • پاداش ۱۵۰ امتیاز فوری
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-rose-500 text-slate-950 font-black text-xs shrink-0 shadow-lg group-hover:shadow-[0_0_18px_rgba(245,158,11,0.7)] transition">
-              <span>ورود به چالش</span>
-              <Sparkles size={13} />
-            </div>
-          </motion.div>
-        </div>
+        {/* 2.5 QUICK DAILY CHALLENGE BANNER / MENU (REMOVED AS REQUESTED) */}
 
         {/* ========================================================================= */}
-        {/* 3. MAIN INTERACTIVE SERPENTINE JOURNEY MAP (Centered, Single-Layer Smooth Scroll) */}
+        {/* 3. MAIN INTERACTIVE SERPENTINE JOURNEY MAP (Fixed Background, Smooth Scroll) */}
         {/* ========================================================================= */}
-        <div 
-          ref={mapScrollContainerRef}
-          className="relative w-full max-w-lg mx-auto flex flex-col items-center justify-start py-2"
-        >
+        <div className="relative w-full max-w-md mx-auto my-3 rounded-3xl overflow-hidden border border-amber-500/50 shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-slate-950">
           
-          <div className="relative w-full max-w-md mx-auto flex justify-center items-center py-2 min-h-[580px] sm:min-h-[540px] lg:min-h-[490px]">
-
-            {/* نقشه تاکتیکی فقط داخل محدوده مسیر بازی — واضح، بدون لایه سیاه و فیکس در جای خودش */}
-            {showMapBackground && (
-              <>
-                <div
-                  className="absolute inset-0 rounded-3xl bg-cover bg-center pointer-events-none opacity-100 border border-amber-500/50 shadow-[0_0_40px_rgba(0,0,0,0.35)]"
-                  style={{ backgroundImage: `url(${tacticalMapBg})` }}
-                />
-                <div className="absolute inset-0 rounded-3xl pointer-events-none ring-2 ring-inset ring-amber-400/40" />
-              </>
-            )}
-
-            {/* SVG Winding Road Path with Textured Glowing Curves */}
-            <svg 
-              className="absolute inset-0 w-full h-full pointer-events-none" 
-              viewBox="0 0 400 900" 
-              preserveAspectRatio="none"
+          {/* 1. Static Fixed Tactical Map Background */}
+          {showMapBackground && (
+            <div
+              className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-100 z-0"
+              style={{ backgroundImage: `url(${tacticalMapBg})` }}
             >
-              <defs>
-                {/* Road Surface Gradient */}
-                <linearGradient id="roadGlow" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
-                  <stop offset="45%" stopColor="#f59e0b" stopOpacity="0.55" />
-                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0.35" />
-                </linearGradient>
-
-                <linearGradient id="roadBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#34d399" stopOpacity="0.75" />
-                  <stop offset="45%" stopColor="#fbbf24" stopOpacity="0.85" />
-                  <stop offset="100%" stopColor="#475569" stopOpacity="0.4" />
-                </linearGradient>
-
-                <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="5" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
-
-              {/* Road Glow Aura */}
-              <path
-                d="M 200 35 
-                   C 200 95, 110 115, 110 185 
-                   C 110 255, 290 275, 290 345 
-                   C 290 415, 120 435, 120 505 
-                   C 120 575, 280 595, 280 665 
-                   C 280 735, 140 755, 140 815
-                   L 260 885"
-                fill="none"
-                stroke="url(#roadGlow)"
-                strokeWidth="70"
-                strokeLinecap="round"
-                filter="url(#glowFilter)"
-                opacity="0.35"
-              />
-
-              {/* Main Asphalt Road Base */}
-              <path
-                d="M 200 35 
-                   C 200 95, 110 115, 110 185 
-                   C 110 255, 290 275, 290 345 
-                   C 290 415, 120 435, 120 505 
-                   C 120 575, 280 595, 280 665 
-                   C 280 735, 140 755, 140 815
-                   L 260 885"
-                fill="none"
-                stroke="#172236"
-                strokeWidth="50"
-                strokeLinecap="round"
-              />
-
-              {/* Road Outer Golden/Emerald Luminous Edge Borders */}
-              <path
-                d="M 200 35 
-                   C 200 95, 110 115, 110 185 
-                   C 110 255, 290 275, 290 345 
-                   C 290 415, 120 435, 120 505 
-                   C 120 575, 280 595, 280 665 
-                   C 280 735, 140 755, 140 815
-                   L 260 885"
-                fill="none"
-                stroke="url(#roadBorder)"
-                strokeWidth="52"
-                strokeLinecap="round"
-                opacity="0.3"
-              />
-
-              {/* Center Dashed Highway Line */}
-              <path
-                d="M 200 35 
-                   C 200 95, 110 115, 110 185 
-                   C 110 255, 290 275, 290 345 
-                   C 290 415, 120 435, 120 505 
-                   C 120 575, 280 595, 280 665 
-                   C 280 735, 140 755, 140 815
-                   L 260 885"
-                fill="none"
-                stroke="#facc15"
-                strokeWidth="2"
-                strokeDasharray="7 9"
-                opacity="0.85"
-              />
-            </svg>
-
-            {/* Stages Embedded Along the S-Curve Road */}
-            <div className="relative w-full h-full flex flex-col justify-between items-center py-1 z-10">
-              {stages.map((stage, idx) => {
-                const isCompleted = stage.status === 'completed';
-                const isInProgress = stage.status === 'in_progress';
-                const isLocked = stage.status === 'locked';
-
-                // Balanced horizontal offsets matching the S-curves
-                const xOffsets = [
-                  'translate-x-0', // Stage 1 (top center)
-                  '-translate-x-16 sm:-translate-x-20', // Stage 2 (curve left)
-                  'translate-x-14 sm:translate-x-18', // Stage 3 (curve right)
-                  '-translate-x-14 sm:-translate-x-18', // Stage 4 (curve left)
-                  'translate-x-12 sm:translate-x-16', // Stage 5 (curve right)
-                  '-translate-x-12 sm:-translate-x-16', // Stage 6 (curve left)
-                  'translate-x-12 sm:translate-x-16' // Stage 7 (curve right)
-                ];
-
-                return (
-                  <React.Fragment key={stage.id}>
-                    <motion.div
-                      ref={isInProgress ? activeStageRef : undefined}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: idx * 0.04 }}
-                      className={`relative flex items-center justify-center ${xOffsets[idx]} my-0`}
-                    >
-                      {/* Stage Interactive Node Button */}
-                      <div 
-                        onClick={() => handleStageClick(stage)}
-                        className="flex flex-row items-center gap-1.5 sm:gap-2 cursor-pointer group select-none"
-                      >
-                        {/* Circular Stage Emblem (نشان تصویری مرحله) */}
-                        <div className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-lg ${
-                          isCompleted 
-                            ? 'bg-[#06241a] border-2 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.7)]'
-                            : isInProgress
-                            ? 'bg-[#2b1e06] border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.9)] animate-pulse'
-                            : 'bg-[#101726] border-2 border-slate-700/80 shadow-[0_0_10px_rgba(0,0,0,0.6)] opacity-90'
-                        }`}>
-                          
-                          {/* Status Badge Image */}
-                          {renderStageIcon(stage.iconName, stage.status)}
-
-                          {/* Top Number Indicator Pin */}
-                          <div className={`absolute -top-1 -right-1 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center font-mono text-[8px] sm:text-[9px] font-black border shadow ${
-                            isCompleted
-                              ? 'bg-emerald-500 text-slate-950 border-slate-950'
-                              : isInProgress
-                              ? 'bg-amber-500 text-slate-950 border-slate-950 animate-bounce'
-                              : 'bg-slate-800 text-slate-400 border-slate-700'
-                          }`}>
-                            {formatToPersianDigits(stage.number)}
-                          </div>
-                        </div>
-
-                        {/* Attached Label Pill (Matching exact design) */}
-                        <div className={`px-2.5 py-1 rounded-xl backdrop-blur-md border transition-all text-right shadow-md flex flex-col justify-center min-w-[95px] max-w-[135px] ${
-                          isCompleted
-                            ? 'bg-[#081f18]/90 border-emerald-500/50 group-hover:border-emerald-400'
-                            : isInProgress
-                            ? 'bg-[#231805]/95 border-amber-500/70 group-hover:border-amber-400'
-                            : 'bg-[#0d1424]/90 border-slate-800 group-hover:border-slate-600'
-                        }`}>
-                          <h4 className="font-black text-[11px] sm:text-xs text-white leading-tight truncate">
-                            {stage.title}
-                          </h4>
-                          
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {isCompleted && (
-                              <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
-                                <CheckCircle2 size={10} className="text-emerald-400 shrink-0" />
-                                <span>تکمیل شد</span>
-                              </span>
-                            )}
-                            {isInProgress && (
-                              <span className="text-[9px] font-bold text-amber-300 flex items-center gap-0.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping shrink-0" />
-                                <span>در حال انجام</span>
-                              </span>
-                            )}
-                            {isLocked && (
-                              <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
-                                <Lock size={9} className="text-slate-500 shrink-0" />
-                                <span>قفل شده</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                      </div>
-                    </motion.div>
-
-                    {/* Dedicated Daily Challenge Stage Node (مرحله چالش روزانه در کنار مسیر اصلی) */}
-                    {idx === 3 && (
-                      <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="relative flex items-center justify-center translate-x-14 sm:translate-x-18 my-0 z-20"
-                      >
-                        <div 
-                          onClick={() => setShowDailyChallengeModal(true)}
-                          className="flex flex-row items-center gap-1.5 sm:gap-2 cursor-pointer group select-none"
-                          title="چالش روزانه اتاق جنگ - کلیک جهت ورود و دریافت ۱۵۰ امتیاز"
-                        >
-                          <div className={`relative w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-lg ${
-                            isDailyChallengeDone 
-                              ? 'bg-[#06241a] border-2 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.7)]'
-                              : 'bg-[#2b1704] border-2 border-amber-400 shadow-[0_0_22px_rgba(245,158,11,0.9)] animate-pulse'
-                          }`}>
-                            {isDailyChallengeDone ? (
-                              <CheckCircle2 size={20} className="text-emerald-400" />
-                            ) : (
-                              <Flame size={20} className="text-amber-400 animate-bounce" />
-                            )}
-
-                            <div className={`absolute -top-1 -right-1 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center font-mono text-[8px] sm:text-[9px] font-black border shadow ${
-                              isDailyChallengeDone
-                                ? 'bg-emerald-500 text-slate-950 border-slate-950'
-                                : 'bg-gradient-to-r from-amber-400 to-rose-500 text-slate-950 border-slate-950'
-                            }`}>
-                              ⚡
-                            </div>
-                          </div>
-
-                          <div className={`px-2.5 py-1 rounded-xl backdrop-blur-md border transition-all text-right shadow-md flex flex-col justify-center min-w-[95px] max-w-[135px] ${
-                            isDailyChallengeDone
-                              ? 'bg-[#081f18]/90 border-emerald-500/50 group-hover:border-emerald-400'
-                              : 'bg-[#271404]/95 border-amber-500/80 group-hover:border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
-                          }`}>
-                            <h4 className="font-black text-[11px] sm:text-xs text-amber-300 leading-tight truncate">
-                              چالش روزانه
-                            </h4>
-                            
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {isDailyChallengeDone ? (
-                                <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
-                                  <CheckCircle2 size={10} className="text-emerald-400 shrink-0" />
-                                  <span>تکمیل شد</span>
-                                </span>
-                              ) : (
-                                <span className="text-[9px] font-bold text-amber-300 flex items-center gap-0.5 animate-pulse">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
-                                  <span>امروز فعال</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+              <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]" />
+              <div className="absolute inset-0 ring-2 ring-inset ring-amber-400/40 rounded-3xl pointer-events-none" />
             </div>
+          )}
 
+          {/* Top Fade Vignette for smooth hidden scroll blending */}
+          {canScrollDown && (
+            <div className="pointer-events-none absolute top-0 inset-x-0 h-8 bg-gradient-to-b from-slate-950/80 to-transparent z-20 rounded-t-3xl" />
+          )}
+
+          {/* Bottom Fade Vignette */}
+          <div className="pointer-events-none absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent z-20 rounded-b-3xl" />
+
+          {/* Animated Scroll Hint Guide Badge (Appears when stages overflow) */}
+          <AnimatePresence>
+            {canScrollDown && (
+              <motion.div
+                initial={{ opacity: 0, y: 12, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.9 }}
+                onClick={() => {
+                  if (mapScrollContainerRef.current) {
+                    mapScrollContainerRef.current.scrollBy({ top: 160, behavior: 'smooth' });
+                  }
+                }}
+                className="absolute bottom-3 inset-x-0 mx-auto w-fit z-30 cursor-pointer flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/60 text-amber-300 text-[10px] sm:text-xs font-black shadow-[0_0_15px_rgba(245,158,11,0.35)] backdrop-blur-md hover:bg-slate-800 transition dir-rtl select-none"
+              >
+                <motion.span
+                  animate={{ y: [0, 4, 0] }}
+                  transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
+                >
+                  <ChevronDown size={14} className="text-amber-400 shrink-0" />
+                </motion.span>
+                <span>برای مشاهده مراحل بیشتر اسکرول کنید</span>
+                <motion.span
+                  animate={{ y: [0, 4, 0] }}
+                  transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
+                >
+                  <ChevronDown size={14} className="text-amber-400 shrink-0" />
+                </motion.span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 2. Path Container for Stage Nodes & Animated Highway (Scrollable ONLY if > 7 stages) */}
+          <div 
+            ref={mapScrollContainerRef}
+            className={`relative z-10 w-full py-4 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+              stageCount > 7 
+                ? 'max-h-[580px] sm:max-h-[620px] overflow-y-auto scroll-smooth' 
+                : 'overflow-hidden'
+            }`}
+          >
+            <div 
+              className="relative w-full mx-auto flex flex-col justify-between items-center"
+              style={{ minHeight: `${mapCanvasHeight}px` }}
+            >
+              {/* SVG Winding Road Path with Textured Glowing Curves */}
+              {stageCount > 0 && (
+                <svg 
+                  className="absolute inset-0 w-full h-full pointer-events-none" 
+                  viewBox={`0 0 400 ${mapCanvasHeight}`} 
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="roadGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+                      <stop offset="45%" stopColor="#f59e0b" stopOpacity="0.55" />
+                      <stop offset="100%" stopColor="#0f172a" stopOpacity="0.35" />
+                    </linearGradient>
+
+                    <linearGradient id="roadBorder" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity="0.75" />
+                      <stop offset="45%" stopColor="#fbbf24" stopOpacity="0.85" />
+                      <stop offset="100%" stopColor="#475569" stopOpacity="0.4" />
+                    </linearGradient>
+
+                    <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="5" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                  </defs>
+
+                  {/* Road Glow Aura */}
+                  <path
+                    d={roadPathD}
+                    fill="none"
+                    stroke="url(#roadGlow)"
+                    strokeWidth="70"
+                    strokeLinecap="round"
+                    filter="url(#glowFilter)"
+                    opacity="0.35"
+                  />
+
+                  {/* Main Asphalt Road Base */}
+                  <path
+                    d={roadPathD}
+                    fill="none"
+                    stroke="#172236"
+                    strokeWidth="50"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Road Outer Golden/Emerald Luminous Edge Borders */}
+                  <path
+                    d={roadPathD}
+                    fill="none"
+                    stroke="url(#roadBorder)"
+                    strokeWidth="52"
+                    strokeLinecap="round"
+                    opacity="0.3"
+                  />
+
+                  {/* Center Dashed Highway Line */}
+                  <path
+                    d={roadPathD}
+                    fill="none"
+                    stroke="#facc15"
+                    strokeWidth="2"
+                    strokeDasharray="7 9"
+                    opacity="0.85"
+                  />
+                </svg>
+              )}
+
+              {/* Stages Embedded Along the S-Curve Road */}
+              {stageCount === 0 ? (
+                <div className="flex flex-col items-center justify-center my-auto py-16 px-6 text-center text-slate-300 space-y-3">
+                  <Compass size={44} className="text-amber-400 animate-pulse" />
+                  <h3 className="font-black text-sm text-white">هیچ مرحله‌ای در نقشه ثبت نشده است</h3>
+                  <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                    مدیر سامانه می‌تواند از بخش مدیریت مراحل جدید اضافه کند.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative w-full h-full flex flex-col justify-between items-center py-2 z-10">
+                  {activeStages.map((stage, idx) => {
+                    const isCompleted = stage.status === 'completed';
+                    const isInProgress = stage.status === 'in_progress';
+                    const isLocked = stage.status === 'locked';
+
+                    // Balanced horizontal offsets matching the S-curves
+                    const xOffset = idx === 0 
+                      ? 'translate-x-0' 
+                      : idx % 2 === 1 
+                      ? '-translate-x-16 sm:-translate-x-20' 
+                      : 'translate-x-14 sm:translate-x-18';
+
+                    return (
+                      <React.Fragment key={stage.id}>
+                        <motion.div
+                          ref={isInProgress ? activeStageRef : undefined}
+                          initial={{ scale: 0.7, opacity: 0, y: 20 }}
+                          animate={{ 
+                            scale: 1, 
+                            opacity: 1, 
+                            y: isInProgress ? [0, -6, 0] : [0, -3, 0] 
+                          }}
+                          transition={{ 
+                            scale: { delay: idx * 0.04, duration: 0.35 },
+                            opacity: { delay: idx * 0.04, duration: 0.35 },
+                            y: { repeat: Infinity, duration: isInProgress ? 2 : 3.5, ease: "easeInOut", delay: idx * 0.15 }
+                          }}
+                          whileHover={{ scale: 1.12, zIndex: 40 }}
+                          whileTap={{ scale: 0.94 }}
+                          className={`relative flex items-center justify-center ${xOffset} my-1`}
+                        >
+                          {/* Stage Interactive Node Button */}
+                          <div 
+                            onClick={() => handleStageClick(stage)}
+                            className="flex flex-row items-center gap-1.5 sm:gap-2 cursor-pointer group select-none"
+                          >
+                            {/* Circular Stage Emblem (نشان تصویری مرحله) */}
+                            <div className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
+                              isCompleted 
+                                ? 'bg-[#06241a] border-2 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.7)]'
+                                : isInProgress
+                                ? 'bg-[#2b1e06] border-2 border-amber-400 shadow-[0_0_22px_rgba(245,158,11,0.95)]'
+                                : 'bg-[#101726] border-2 border-slate-700/80 shadow-[0_0_10px_rgba(0,0,0,0.6)] opacity-90'
+                            }`}>
+                              
+                              {/* Halo Pulse Ring for Active Stage */}
+                              {isInProgress && (
+                                <motion.span
+                                  animate={{ scale: [1, 1.45, 1], opacity: [0.75, 0, 0.75] }}
+                                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                                  className="absolute inset-0 rounded-full border-2 border-amber-400 pointer-events-none"
+                                />
+                              )}
+
+                              {/* Halo Pulse for Completed Stage */}
+                              {isCompleted && (
+                                <motion.span
+                                  animate={{ scale: [1, 1.25, 1], opacity: [0.4, 0, 0.4] }}
+                                  transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut", delay: idx * 0.2 }}
+                                  className="absolute inset-0 rounded-full border border-emerald-400 pointer-events-none"
+                                />
+                              )}
+
+                              {/* Status Badge Image / Icon */}
+                              <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                                {renderStageIcon(stage.iconName, stage.status, stage.customIconUrl)}
+                              </div>
+
+                              {/* Top Number Indicator Pin */}
+                              <motion.div 
+                                animate={isInProgress ? { scale: [1, 1.15, 1] } : {}}
+                                transition={isInProgress ? { repeat: Infinity, duration: 1.2 } : {}}
+                                className={`absolute -top-1 -right-1 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center font-mono text-[8px] sm:text-[9px] font-black border shadow ${
+                                  isCompleted
+                                    ? 'bg-emerald-500 text-slate-950 border-slate-950'
+                                    : isInProgress
+                                    ? 'bg-amber-500 text-slate-950 border-slate-950'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}
+                              >
+                                {formatToPersianDigits(stage.number)}
+                              </motion.div>
+                            </div>
+
+                            {/* Attached Label Pill */}
+                            <motion.div 
+                              whileHover={{ x: -2 }}
+                              className={`px-2.5 py-1 rounded-xl backdrop-blur-md border transition-all text-right shadow-md flex flex-col justify-center min-w-[95px] max-w-[135px] ${
+                                isCompleted
+                                  ? 'bg-[#081f18]/90 border-emerald-500/50 group-hover:border-emerald-400'
+                                  : isInProgress
+                                  ? 'bg-[#231805]/95 border-amber-500/70 group-hover:border-amber-400'
+                                  : 'bg-[#0d1424]/90 border-slate-800 group-hover:border-slate-600'
+                              }`}
+                            >
+                              <h4 className="font-black text-[11px] sm:text-xs text-white leading-tight truncate">
+                                {stage.title}
+                              </h4>
+                              
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {isCompleted && (
+                                  <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
+                                    <CheckCircle2 size={10} className="text-emerald-400 shrink-0" />
+                                    <span>تکمیل شد</span>
+                                  </span>
+                                )}
+                                {isInProgress && (
+                                  <span className="text-[9px] font-bold text-amber-300 flex items-center gap-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping shrink-0" />
+                                    <span>در حال انجام</span>
+                                  </span>
+                                )}
+                                {isLocked && (
+                                  <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
+                                    <Lock size={9} className="text-slate-500 shrink-0" />
+                                    <span>قفل شده</span>
+                                  </span>
+                                )}
+                              </div>
+                            </motion.div>
+
+                          </div>
+                        </motion.div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              )}
+
+            </div>
           </div>
 
         </div>
@@ -925,6 +896,7 @@ export default function JourneyView({
         currentUser={currentUser}
         triggerAlert={triggerAlert}
         onStageCompleted={(stageId, earnedPoints) => {
+          onStageCompleted?.(stageId, earnedPoints);
           triggerAlert(`مرحله با موفقیت فتح شد و ${formatToPersianDigits(earnedPoints)} کریستال پاداش به رزمنده تعلق گرفت.`);
         }}
       />
@@ -1273,9 +1245,37 @@ export default function JourneyView({
               {/* TAB 3: AVATAR SELECTOR */}
               {profileSubTab === 'avatar' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-slate-300">
-                    تصویر آواتار دلخواه خود را جهت نمایش در نقشه بازی و جوخه انتخاب فرمایید:
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-slate-300">
+                      تصویر آواتار دلخواه خود را جهت نمایش در نقشه بازی و جوخه انتخاب یا آپلود فرمایید:
+                    </p>
+                    <span className="text-[10px] font-bold text-amber-400 shrink-0">حداکثر ۱ مگابایت</span>
+                  </div>
+
+                  {/* Custom Upload Card */}
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3 shadow-inner">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0">
+                        <Upload size={18} />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-200">آپلود آواتار اختصاصی</h5>
+                        <p className="text-[10px] text-slate-400">فرمت‌های تصویری (کمتر از ۱ مگابایت)</p>
+                      </div>
+                    </div>
+
+                    <label className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs cursor-pointer transition shadow-md flex items-center gap-1.5 shrink-0">
+                      <Upload size={13} />
+                      <span>انتخاب فایل</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleAvatarUploadFile} 
+                      />
+                    </label>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
                     {PREDEFINED_AVATARS.map(avatar => {
                       const isSelected = (selectedAvatarUrl || currentUser?.avatar_url) === avatar.url;
@@ -1338,7 +1338,7 @@ export default function JourneyView({
               {/* Close / Action footer */}
               <div className="border-t border-slate-800 pt-3 flex items-center justify-between">
                 <span className="text-[11px] text-slate-500">
-                  امتیاز کل: {formatToPersianDigits(currentUser?.points || 2480)} کریستال
+                  امتیاز کل: {formatToPersianDigits(currentUser?.points || 0)} کریستال
                 </span>
                 <button
                   onClick={() => setShowProfileDrawer(false)}
@@ -1375,15 +1375,8 @@ export default function JourneyView({
         triggerAlert={triggerAlert}
         onAwardPoints={(pts) => {
           setIsDailyChallengeDone(true);
-          try {
-            const savedUserData = localStorage.getItem('warroom_current_user_data');
-            if (savedUserData) {
-              const u = JSON.parse(savedUserData);
-              u.points = (u.points || 0) + pts;
-              localStorage.setItem('warroom_current_user_data', JSON.stringify(u));
-              window.dispatchEvent(new Event('storage'));
-            }
-          } catch {}
+          onAwardDailyPoints?.(pts);
+          triggerAlert(`چالش روزانه تکمیل شد و ${formatToPersianDigits(pts)} کریستال به امتیازات شما در دیتابیس افزوده شد.`);
         }}
       />
 

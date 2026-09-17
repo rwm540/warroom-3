@@ -17,8 +17,12 @@ import {
   News,
   AppNotification,
   GamePortal,
-  PasswordResetRequest
+  PasswordResetRequest,
+  JourneyStage,
+  DailyChallengeConfig,
+  PrizeItem
 } from './types';
+import { initialJourneyStages, initialDailyChallengeConfig } from './data/initialStages';
 
 // Mock Data
 import { 
@@ -52,7 +56,8 @@ import {
   useSyncedCollection,
   useSyncedSetting,
   persistSavedPostsToDb,
-  loadSavedPostsFromDb
+  loadSavedPostsFromDb,
+  saveUserProgressToSupabase
 } from './lib/supabaseData';
 import { checkSupabaseHealth } from './lib/supabaseClient';
 // 🛡️ لایه ارتباط امن با بک‌اند (احراز هویت، رمز عبور، درخواست‌های تغییر رمز)
@@ -94,16 +99,18 @@ import GameSelectionPortalModal from './components/GameSelectionPortalModal';
 import NotificationCenterModal from './components/NotificationCenterModal';
 import LiveNotificationToast from './components/LiveNotificationToast';
 import OnboardingCommanderTutorial from './components/OnboardingCommanderTutorial';
+import RadarLoading from './components/RadarLoading';
 
 // Only AdminPanel kept lazy as an internal administrative tool
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 
 const ViewFallback = () => (
-  <div className="w-full min-h-[160px] py-6 flex items-center justify-center text-center text-slate-400 font-sans dir-rtl">
-    <div className="flex items-center gap-2 text-xs text-emerald-400">
-      <Radio size={16} className="animate-pulse text-emerald-400" />
-      <span>در حال آماده‌سازی...</span>
-    </div>
+  <div className="w-full min-h-[300px] py-12 flex flex-col items-center justify-center text-center font-sans dir-rtl">
+    <RadarLoading 
+      size="sm" 
+      label="در حال پایش راداری و پردازش..." 
+      subLabel="سامانه اتاق جنگ" 
+    />
   </div>
 );
 
@@ -259,10 +266,31 @@ export default function App() {
     initial: DEFAULT_GAME_PORTALS
   });
 
+  // 🆕 مراحل نقشه بازی (Journey Stages) — همگام با Supabase
+  const [stages, setStages] = useSyncedCollection<JourneyStage>({
+    storageKey: 'warroom_stages_list',
+    table: 'warroom_stages',
+    initial: initialJourneyStages
+  });
+
+  // 🆕 تنظیمات چالش روزانه — همگام با Supabase
+  const [dailyChallengeConfig, setDailyChallengeConfig] = useSyncedSetting<DailyChallengeConfig>({
+    storageKey: 'warroom_daily_challenge_config',
+    settingKey: 'daily_challenge_config',
+    initial: () => initialDailyChallengeConfig
+  });
+
   // 🛡️ درخواست‌های تغییر رمز عبور (حالت محلی) — در حالت بک‌اند، سرور مرجع است
   const [passwordResetRequests, setPasswordResetRequests] = useSyncedCollection<PasswordResetRequest>({
     storageKey: 'warroom_password_reset_requests',
     table: 'warroom_password_reset_requests',
+    initial: []
+  });
+
+  // 🎁 مدیریت سیستم جوایز و کریستال‌ها — همگام با Supabase
+  const [prizes, setPrizes] = useSyncedCollection<PrizeItem>({
+    storageKey: 'warroom_prizes_list',
+    table: 'warroom_prizes',
     initial: []
   });
 
@@ -787,6 +815,7 @@ export default function App() {
               homeAnnouncements={homeAnnouncements}
               homeStats={homeStats}
               faqs={faqs}
+              prizes={prizes}
               campaignTheme={campaignTheme}
               onChangeCampaign={() => {
                 const newTheme = campaignTheme === 'boys' ? 'girls' : 'boys';
@@ -890,6 +919,10 @@ export default function App() {
                     setVitrinPosts={setVitrinPosts}
                     gamePortals={gamePortals}
                     setGamePortals={setGamePortals}
+                    stages={stages}
+                    setStages={setStages}
+                    dailyChallengeConfig={dailyChallengeConfig}
+                    setDailyChallengeConfig={setDailyChallengeConfig}
                     onBroadcastNotification={(notif) => {
                       setLiveToastNotification(notif);
                     }}
@@ -904,6 +937,8 @@ export default function App() {
                     setFaqs={setFaqs}
                     passwordResetRequests={passwordResetRequests}
                     setPasswordResetRequests={setPasswordResetRequests}
+                    prizes={prizes}
+                    setPrizes={setPrizes}
                     onNavigate={(tab) => handleTabChange(tab)}
                   />
                 ) : (
@@ -911,6 +946,7 @@ export default function App() {
                     {(activeTab === 'Journey' || activeTab === 'Profile') && (
                       <JourneyView 
                         currentUser={currentUser}
+                        stages={stages}
                         showMapBackground={activeTab === 'Journey'}
                         groups={groups}
                         medals={medals}
@@ -929,7 +965,39 @@ export default function App() {
                           if (currentUser) {
                             const updated = { ...currentUser, avatar_url: newUrl };
                             setCurrentUser(updated);
-                            setUsers(users.map(u => u.id === updated.id ? updated : u));
+                            setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+                            saveUserProgressToSupabase(updated);
+                          }
+                        }}
+                        onStageCompleted={(stageId, earnedPoints) => {
+                          if (currentUser) {
+                            const currentCompleted = Array.isArray(currentUser.completed_stages) ? currentUser.completed_stages : [];
+                            const newCompleted = currentCompleted.includes(stageId) ? currentCompleted : [...currentCompleted, stageId];
+                            const newPoints = (currentUser.points || 0) + earnedPoints;
+                            const newLevel = Math.max(1, Math.floor(newPoints / 500) + 1);
+                            const updated: User = {
+                              ...currentUser,
+                              completed_stages: newCompleted,
+                              points: newPoints,
+                              level: newLevel
+                            };
+                            setCurrentUser(updated);
+                            setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+                            saveUserProgressToSupabase(updated);
+                          }
+                        }}
+                        onAwardDailyPoints={(pts) => {
+                          if (currentUser) {
+                            const newPoints = (currentUser.points || 0) + pts;
+                            const newLevel = Math.max(1, Math.floor(newPoints / 500) + 1);
+                            const updated: User = {
+                              ...currentUser,
+                              points: newPoints,
+                              level: newLevel
+                            };
+                            setCurrentUser(updated);
+                            setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+                            saveUserProgressToSupabase(updated);
                           }
                         }}
                       />
@@ -942,6 +1010,7 @@ export default function App() {
                         groups={groups}
                         medals={medals}
                         userMedals={userMedals}
+                        prizes={prizes}
                         initialSubTab={activeTab === 'Leaderboard' || activeTab === 'RewardsLeaderboard' ? 'leaderboard' : 'prizes'}
                         triggerAlert={triggerAlert}
                         onNavigate={(tab) => handleTabChange(tab)}
@@ -968,6 +1037,9 @@ export default function App() {
                         submissions={submissions}
                         announcements={announcements}
                         news={news}
+                        stages={stages}
+                        medals={medals}
+                        userMedals={userMedals}
                         onNavigate={(tab) => handleTabChange(tab)}
                         onOpenSquadModal={() => setShowSquadModal(true)}
                       />

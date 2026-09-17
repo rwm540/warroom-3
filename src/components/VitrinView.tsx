@@ -21,6 +21,7 @@ import {
 import { User } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { playTacticalSound } from '../utils/epicBgmEngine';
+import RadarLoading from './RadarLoading';
 import { 
   VitrinPost, 
   VitrinComment, 
@@ -687,9 +688,8 @@ export default function VitrinView({
 
             {/* Loading Indicator or Action Button */}
             {isLoadingNextPost ? (
-              <div className="flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-cyan-950/50 border border-cyan-500/40 text-cyan-300 text-xs font-bold shadow-lg animate-pulse">
-                <Loader2 size={18} className="animate-spin text-cyan-400" />
-                <span>در حال بارگذاری ویدیوی بعدی...</span>
+              <div className="flex flex-col items-center justify-center py-2">
+                <RadarLoading size="sm" label="در حال پویش و دریافت ویدیوی بعدی..." subLabel="سامانه ویترین اتاق جنگ" />
               </div>
             ) : (
               <button

@@ -12,8 +12,8 @@ export default function QuickActionsGrid({
 }: QuickActionsGridProps) {
   return (
     <div className="mx-4 my-4 dir-rtl space-y-3">
-      {/* 2 Featured Cyber Cards from Image 1 */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Featured Cyber Card: Game & Stage Selection */}
+      <div className="w-full">
         
         {/* Card 1: Leaderboard Preview */}
         <div 
@@ -62,35 +62,6 @@ export default function QuickActionsGrid({
               </div>
               <span className="text-[9px] font-mono text-slate-400 mt-1">25K</span>
             </div>
-          </div>
-        </div>
-
-        {/* Card 2: Daily Challenge */}
-        <div 
-          onClick={() => onNavigate('PortalSelector')}
-          className="p-3.5 rounded-2xl cyber-card-3d hover:border-cyan-400/50 transition-all cursor-pointer space-y-2.5 text-right group"
-        >
-          <div className="flex items-center justify-between text-xs font-black text-white">
-            <span className="flex items-center gap-1 group-hover:text-cyan-300 transition-colors">
-              چالش روزانه
-            </span>
-            <ChevronLeft size={14} className="text-cyan-400" />
-          </div>
-
-          <div className="flex flex-col items-center justify-center py-1 space-y-1">
-            <Zap size={22} className="text-amber-400 fill-amber-400/30 animate-pulse drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" />
-            <div className="text-xs font-black text-white font-mono tracking-wider">
-              ۸۵۰ / ۱۰۰۰
-            </div>
-            <div className="w-full h-1.5 rounded-full bg-slate-900 border border-cyan-950 overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)]" style={{ width: '85%' }} />
-            </div>
-          </div>
-
-          <div className="flex justify-center">
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[9px] font-bold">
-              فعال
-            </span>
           </div>
         </div>
 

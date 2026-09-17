@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { User, Group } from '../types';
+import { User, Group, PrizeItem } from '../types';
 import { 
   initialHomeAnnouncements, 
   homeStatsData, 
@@ -35,6 +34,7 @@ interface HomeViewProps {
   homeAnnouncements?: HomeAnnouncement[];
   homeStats?: HomeStats;
   faqs?: FaqItem[];
+  prizes?: PrizeItem[];
   campaignTheme?: 'girls' | 'boys';
   onChangeCampaign?: () => void;
 }
@@ -54,6 +54,7 @@ export default function HomeView({
   homeAnnouncements,
   homeStats,
   faqs,
+  prizes = [],
   campaignTheme = 'boys',
   onChangeCampaign
 }: HomeViewProps) {
@@ -118,21 +119,15 @@ export default function HomeView({
         {isGirls ? (
           <>
             <div className="absolute top-0 inset-x-0 h-[35vh] bg-gradient-to-b from-[#020005] via-[#090112]/70 to-transparent" />
-            <div className="absolute -bottom-24 -left-20 w-[550px] sm:w-[700px] h-[550px] sm:h-[700px] blur-[80px] rounded-full bg-[radial-gradient(circle,rgba(255,19,137,0.35)_0%,transparent_70%)] transform-gpu will-change-transform" />
-            <div className="absolute -bottom-24 -right-20 w-[600px] sm:w-[750px] h-[600px] sm:h-[750px] blur-[85px] rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.38)_0%,transparent_70%)] transform-gpu will-change-transform" />
-            <div className="absolute bottom-[25%] left-1/2 -translate-x-1/2 w-[500px] h-[400px] blur-[90px] rounded-full bg-[radial-gradient(circle,rgba(74,13,103,0.3)_0%,transparent_70%)]" />
+            <div className="absolute -bottom-24 -left-20 w-[450px] h-[450px] blur-[50px] rounded-full bg-[radial-gradient(circle,rgba(255,19,137,0.25)_0%,transparent_70%)] transform-gpu" />
+            <div className="absolute -bottom-24 -right-20 w-[500px] h-[500px] blur-[55px] rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.28)_0%,transparent_70%)] transform-gpu" />
           </>
         ) : (
           <>
             <div className="absolute top-0 inset-x-0 h-[40vh] bg-gradient-to-b from-[#010206] via-[#020512]/60 to-transparent" />
-            {/* Bottom-left Crimson-Red Aura matching reference wallpaper */}
-            <div className="absolute -bottom-24 -left-20 w-[550px] sm:w-[700px] h-[550px] sm:h-[700px] blur-[80px] rounded-full bg-[radial-gradient(circle,rgba(220,38,38,0.35)_0%,transparent_70%)] transform-gpu will-change-transform" />
-            {/* Bottom-right Electric Cobalt-Blue Aura matching reference wallpaper */}
-            <div className="absolute -bottom-24 -right-20 w-[600px] sm:w-[750px] h-[600px] sm:h-[750px] blur-[85px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.38)_0%,transparent_70%)] transform-gpu will-change-transform" />
-            {/* Deep Indigo convergence */}
-            <div className="absolute bottom-[22%] left-1/2 -translate-x-1/2 w-[500px] h-[400px] blur-[90px] rounded-full bg-[radial-gradient(circle,rgba(55,27,110,0.3)_0%,transparent_70%)]" />
-            {/* Fine Cyber Grid */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.08)_1px,transparent_1px)] bg-[size:28px_28px] opacity-60" />
+            <div className="absolute -bottom-24 -left-20 w-[450px] h-[450px] blur-[50px] rounded-full bg-[radial-gradient(circle,rgba(220,38,38,0.25)_0%,transparent_70%)] transform-gpu" />
+            <div className="absolute -bottom-24 -right-20 w-[500px] h-[500px] blur-[55px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.28)_0%,transparent_70%)] transform-gpu" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:32px_32px] opacity-50" />
           </>
         )}
       </div>
@@ -146,17 +141,13 @@ export default function HomeView({
         
         <div className="relative z-10 flex-1 flex flex-col">
 
-          {/* Main Landing Content with Scroll Animations */}
+          {/* Main Landing Content with Clean Performance Rendering */}
           <div className="p-3 sm:p-5 md:p-6 space-y-6 sm:space-y-8">
             
-            {/* 1. Adventure Hero Section */}
-            <motion.section 
+            {/* 1. Adventure Hero Section - Instant Render (No Scroll Waiting) */}
+            <section 
               aria-label="بخش معرفی مسابقه و بنر ثبت‌نام"
-              className="transform-gpu will-change-transform"
-              initial={{ opacity: 0, y: 30, scale: 0.98 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: false, amount: 0.1, margin: "-20px" }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="transform-gpu"
             >
               <AdventureHeroSection 
                 themeMode={themeMode}
@@ -175,31 +166,24 @@ export default function HomeView({
                   }
                 }}
               />
-            </motion.section>
+            </section>
 
-            {/* 2. Dedicated Banner for Prizes & Awards */}
-            <motion.section 
+            {/* 2. Dedicated Banner for Prizes & Awards - Instant Render */}
+            <section 
               aria-label="جوایز و هدایای مسابقه"
-              className="transform-gpu will-change-transform"
-              initial={{ opacity: 0, y: 35, scale: 0.98 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: false, amount: 0.12, margin: "-20px" }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="transform-gpu"
             >
               <PrizesAwardsBanner 
                 themeMode={themeMode}
+                prizes={prizes}
                 onExplorePrizes={() => setActiveTab('RewardsLeaderboard')}
               />
-            </motion.section>
+            </section>
 
             {/* 3. Social Media Widgets: Local Messengers + Stages & Guide */}
-            <motion.section 
+            <section 
               aria-label="شبکه‌های اجتماعی و پیام‌رسان‌های بله و ایتا"
-              className="transform-gpu will-change-transform"
-              initial={{ opacity: 0, y: 35, scale: 0.98 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: false, amount: 0.12, margin: "-20px" }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="transform-gpu"
             >
               <SocialMessengersWidgets 
                 themeMode={themeMode}
@@ -207,34 +191,28 @@ export default function HomeView({
                 onOpenGuide={() => setShowGuideModal(true)}
                 triggerAlert={triggerAlert}
               />
-            </motion.section>
+            </section>
 
             {/* 4. About Us Section */}
-            <motion.section 
+            <section 
               aria-label="درباره ما"
-              className="transform-gpu will-change-transform"
-              initial={{ opacity: 0, y: 30, scale: 0.98 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: false, amount: 0.15, margin: "-20px" }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="transform-gpu"
             >
               <AboutSection onOpenMore={() => setActiveTab('About')} />
-            </motion.section>
+            </section>
 
-            {/* 5. Footer at the Very Bottom */}
-            <motion.footer 
-              className="transform-gpu will-change-transform"
-              initial={{ opacity: 0, y: 25 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: false, amount: 0.15, margin: "-20px" }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            {/* 5. Footer Section */}
+            <section 
+              aria-label="فوتر و اطلاعات تماس"
+              className="transform-gpu pt-2"
             >
               <Footer 
+                themeMode={themeMode}
                 onNavigate={(tab) => setActiveTab(tab)}
                 onOpenAbout={() => setActiveTab('About')}
-                themeMode={themeMode}
+                triggerAlert={triggerAlert}
               />
-            </motion.footer>
+            </section>
 
           </div>
 

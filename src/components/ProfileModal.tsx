@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Award, User as UserIcon, Check, ShieldCheck, Sparkles, Star, Bookmark, Video } from 'lucide-react';
+import { X, Award, User as UserIcon, Check, ShieldCheck, Sparkles, Star, Bookmark, Video, Upload, Image as ImageIcon } from 'lucide-react';
 import { User, Medal, UserMedal } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { getSavedPostIds } from '../data/vitrinData';
@@ -64,6 +64,28 @@ export default function ProfileModal({
     onUpdateAvatar(selectedAvatar);
     triggerAlert('آواتار پروفایل شما با موفقیت به‌روزرسانی شد.');
     onClose();
+  };
+
+  const handleAvatarFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Strict 1 MB size check
+    const MAX_SIZE_BYTES = 1024 * 1024; // 1 MB
+    if (file.size > MAX_SIZE_BYTES) {
+      triggerAlert('خطا: سایز تصویر آواتار نباید بیشتر از ۱ مگابایت باشد.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setSelectedAvatar(reader.result);
+        triggerAlert('تصویر آواتار شخصی بارگذاری شد (حداکثر ۱ مگابایت).');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -142,9 +164,37 @@ export default function ProfileModal({
             </button>
           </div>
 
-          {/* Avatar Selection (6 Avatars) */}
+          {/* Avatar Selection & Upload */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-300">انتخاب آواتار تاکتیکی دلخواه:</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-300">انتخاب یا آپلود آواتار تاکتیکی:</label>
+              <span className="text-[10px] text-amber-400/90 font-medium">حداکثر ۱ مگابایت</span>
+            </div>
+
+            {/* Custom Avatar Upload Button */}
+            <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0">
+                  <Upload size={18} />
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-slate-200">آپلود عکس دلخواه</h5>
+                  <p className="text-[10px] text-slate-400">فرمت‌های JPG، PNG (کمتر از ۱ مگابایت)</p>
+                </div>
+              </div>
+
+              <label className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs cursor-pointer transition shadow-md flex items-center gap-1.5">
+                <Upload size={14} />
+                <span>انتخاب فایل</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarFileUpload} 
+                />
+              </label>
+            </div>
+
             <div className="grid grid-cols-3 gap-3">
               {PREDEFINED_AVATARS.map((av) => {
                 const isSelected = selectedAvatar === av.url;
