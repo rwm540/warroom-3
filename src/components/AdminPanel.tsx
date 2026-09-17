@@ -1117,18 +1117,6 @@ export default function AdminPanel({
     is_active: true
   });
 
-  // Global active modal tracking for AdminPanel (hides mobile bottom nav & music bar when any modal opens)
-  const isAnyAdminModalActive = Boolean(showPortalModal || showUserModal || viewingUserDetail || showMissionModal || showTrainingModal);
-
-  useEffect(() => {
-    if (isAnyAdminModalActive) {
-      window.dispatchEvent(new CustomEvent('warroom_modal_active_change', { detail: { active: true } }));
-      return () => {
-        window.dispatchEvent(new CustomEvent('warroom_modal_active_change', { detail: { active: false } }));
-      };
-    }
-  }, [isAnyAdminModalActive]);
-
   // LOCAL NOTIFICATION FORM STATES
   const [notifTitle, setNotifTitle] = useState('');
   const [notifMessage, setNotifMessage] = useState('');
@@ -1257,6 +1245,30 @@ export default function AdminPanel({
     image: '🏅',
     category: 'عملیاتی'
   });
+
+  // Global active modal tracking for AdminPanel (hides mobile bottom nav & music bar when any modal opens)
+  const isAnyAdminModalActive = Boolean(
+    showPortalModal || 
+    showUserModal || 
+    viewingUserDetail || 
+    showMissionModal || 
+    showTrainingModal || 
+    showStageModal || 
+    showPrizeModal || 
+    showVitrinModal || 
+    showSqlScriptModal || 
+    showNewMedalModal || 
+    Boolean(gradingSubId)
+  );
+
+  useEffect(() => {
+    if (isAnyAdminModalActive) {
+      window.dispatchEvent(new CustomEvent('warroom_modal_active_change', { detail: { active: true } }));
+      return () => {
+        window.dispatchEvent(new CustomEvent('warroom_modal_active_change', { detail: { active: false } }));
+      };
+    }
+  }, [isAnyAdminModalActive]);
 
   const [publishToVitrinInForm, setPublishToVitrinInForm] = useState(false);
 
@@ -6286,7 +6298,25 @@ export default function AdminPanel({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stages.map((stg) => (
+              {stages.length === 0 ? (
+                <div className="col-span-full p-8 rounded-3xl bg-slate-950/60 border border-dashed border-cyan-500/30 flex flex-col items-center justify-center text-center space-y-3">
+                  <span className="w-14 h-14 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400 flex items-center justify-center">
+                    <MapPin size={28} />
+                  </span>
+                  <h4 className="text-sm font-black text-white">هنوز هیچ مرحله‌ای در مسیر بازی تعریف نشده است</h4>
+                  <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+                    با کلیک روی دکمه زیر می‌توانید مرحله ۱ را ایجاد کرده و امتیاز و مشخصات آن را مشخص کنید.
+                  </p>
+                  <button
+                    onClick={handleOpenAddStage}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-2 cursor-pointer hover:opacity-95"
+                    id="btn-add-first-stage"
+                  >
+                    <Plus size={16} />
+                    <span>ایجاد و افزودن اولین مرحله بازی</span>
+                  </button>
+                </div>
+              ) : stages.map((stg) => (
                 <div
                   key={stg.id}
                   className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 hover:border-cyan-500/50 transition flex flex-col justify-between gap-3 group relative overflow-hidden"
@@ -6512,29 +6542,51 @@ export default function AdminPanel({
                   />
                 </div>
 
+                {/* Direct High-Visibility In-Form Submit Button */}
+                <div className="sm:col-span-2 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="submit"
+                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-amber-400 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm shadow-[0_0_25px_rgba(6,182,212,0.4)] transition flex items-center justify-center gap-2 cursor-pointer"
+                    id="btn-submit-stage-inner"
+                  >
+                    <Check size={18} className="stroke-[3]" />
+                    <span>{editingStage ? 'ثبت و اعمال تغییرات مرحله' : 'ثبت مرحله جدید و ذخیره در نقشه بازی'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowStageModal(false)}
+                    className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-bold transition cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                </div>
+
               </div>
             </form>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2.5 bg-slate-950/80">
-              <button
-                type="button"
-                onClick={() => setShowStageModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-slate-300 text-xs font-bold hover:text-white"
-              >
-                انصراف
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const form = document.getElementById('stage-editor-form') as HTMLFormElement | null;
-                  if (form) form.requestSubmit();
-                }}
-                className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-1.5"
-              >
-                <Check size={14} />
-                <span>ذخیره مرحله در Supabase</span>
-              </button>
+            {/* Sticky Modal Footer with Secondary Direct Submit */}
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-950/95 sticky bottom-0 z-20">
+              <span className="text-[11px] text-cyan-300/80 font-medium hidden sm:inline">
+                {editingStage ? 'در حال ویرایش مرحله موجود' : 'در حال تعریف مرحله جدید'}
+              </span>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowStageModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 text-xs font-bold hover:text-white border border-slate-800 cursor-pointer"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleSaveStage(e)}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-xs sm:text-sm transition shadow-lg flex items-center gap-1.5 cursor-pointer"
+                  id="btn-footer-save-stage"
+                >
+                  <Check size={16} className="stroke-[3]" />
+                  <span>{editingStage ? 'ثبت و بروزرسانی مرحله' : 'ثبت و ایجاد مرحله'}</span>
+                </button>
+              </div>
             </div>
 
           </div>

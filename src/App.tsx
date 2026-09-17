@@ -1141,9 +1141,19 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Global Floating Android Mobile Bottom Navigation (فقط در بخش‌های پنل — در صفحه اول سایت و صفحات عمومی اصلاً نمایش داده نمی‌شود) */}
+      {/* Global Floating Android Mobile Bottom Navigation (هنگام باز شدن هر صفحه یا مدال بسته می‌شود و پس از بستن، مجدداً باز می‌شود) */}
       <AnimatePresence>
-        {!(isModalActive || showNotificationCenter || showGamePortal || showSquadModal || showProfileModal || showOnboardingTutorial) && !showAuthScreen && currentUser && !['Home', 'About', 'Support', 'Contact'].includes(activeTab) && (
+        {!(
+          isModalActive || 
+          showNotificationCenter || 
+          showGamePortal || 
+          showSquadModal || 
+          showProfileModal || 
+          showOnboardingTutorial || 
+          showAuthScreen || 
+          isAdminMode ||
+          ['Support', 'About', 'Contact', 'Rules', 'Admin'].includes(activeTab)
+        ) && (
           <motion.div
             key="android-bottom-nav-container"
             initial={{ y: 90, opacity: 0 }}
@@ -1155,7 +1165,7 @@ export default function App() {
             <BottomNavigation 
               activeTab={isAdminMode ? 'Admin' : activeTab}
               setActiveTab={(tab) => {
-                setIsAdminMode(false);
+                setIsAdminMode(tab === 'Admin');
                 handleTabChange(tab);
               }}
               currentUser={currentUser}
