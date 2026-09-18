@@ -246,7 +246,7 @@ export default function AdminPanel({
   onNavigate
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets' | 'stage_builder' | 'prizes' | 'payments'
+    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'chat_control' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets' | 'stage_builder' | 'prizes' | 'payments'
   >('submissions');
 
   // 🛡️ وضعیت بک‌اند امن (برای مدیریت امن رمز کاربران)
@@ -2015,6 +2015,18 @@ export default function AdminPanel({
         >
           <FileText size={15} />
           <span>مدیریت محتوای سایت و صفحات</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('chat_control')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl whitespace-nowrap shrink-0 transition border ${
+            activeAdminTab === 'chat_control'
+              ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black'
+              : 'bg-[#080d21] text-slate-400 border-slate-800 hover:text-white'
+          }`}
+        >
+          <MessageSquare size={15} />
+          <span>کنترل چت‌ها</span>
         </button>
 
         <button
@@ -5051,7 +5063,7 @@ export default function AdminPanel({
       )}
 
       {/* 9. REAL-TIME PUSH NOTIFICATIONS & BROADCAST STUDIO */}
-      {activeAdminTab === 'notifications' && (
+      {activeAdminTab === 'chat_control' && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-cyan-500/30 bg-[#09121f] p-4">
             <div className="mb-3 flex items-center justify-between">
