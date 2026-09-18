@@ -64,6 +64,7 @@ import {
 import { checkSupabaseHealth } from './lib/supabaseClient';
 // 🛡️ لایه ارتباط امن با بک‌اند (احراز هویت، رمز عبور، درخواست‌های تغییر رمز)
 import { probeBackend, apiLogout, apiSession, getBackendStatus, subscribeBackendStatus } from './lib/backendApi';
+import { installGlobalErrorAudit, logAudit } from './lib/auditLogger';
 
 // Vitrin (Showcase) data layer
 import {
@@ -159,6 +160,18 @@ class AdminErrorBoundary extends React.Component<
 }
 
 export default function App() {
+  useEffect(() => {
+    const uninstallErrorAudit = installGlobalErrorAudit();
+    void logAudit({
+      event: 'app.started',
+      level: 'info',
+      source: 'client',
+      route: window.location.pathname,
+      metadata: { userAgent: navigator.userAgent.slice(0, 240) },
+    });
+    return uninstallErrorAudit;
+  }, []);
+
   // ============================================================================
   // Global Data State — کاملاً همگام با Supabase
   // هر مجموعه‌ای که از useSyncedCollection ساخته می‌شود، پس از بارگذاری

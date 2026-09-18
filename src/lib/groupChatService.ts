@@ -1,5 +1,6 @@
 import { GroupChatMessage, GroupChatRoom, User } from '../types';
 import { isSupabaseEnabled, supabase } from './supabaseClient';
+import { logAudit } from './auditLogger';
 
 const CHAT_STORAGE_KEY = 'warroom_group_chat_store_v1';
 const CHAT_EVENT_NAME = 'warroom_group_chat_updated';
@@ -186,6 +187,13 @@ export function ensureGroupChatRoom(groupId: string, groupName: string, memberId
       .catch(() => undefined);
   }
 
+  void logAudit({
+    event: existing ? 'chat.room_updated' : 'chat.room_created',
+    level: 'info',
+    source: 'client',
+    metadata: { groupId, roomId: room.id, memberCount: normalizedMembers.length },
+  });
+
   return room;
 }
 
@@ -229,6 +237,13 @@ export function deleteGroupChatMessage(roomId: string, messageId: string): boole
   if (isSupabaseEnabled && supabase) {
     void supabase.from('warroom_group_chat_messages').delete().eq('id', messageId).catch(() => undefined);
   }
+
+  void logAudit({
+    event: 'chat.message_deleted',
+    level: 'security',
+    source: 'client',
+    metadata: { roomId, messageId },
+  });
 
   return true;
 }
@@ -285,6 +300,14 @@ export function appendGroupChatMessage(payload: {
       })
       .catch(() => undefined);
   }
+
+  void logAudit({
+    event: 'chat.message_sent',
+    level: 'info',
+    source: 'client',
+    actorId: payload.userId,
+    metadata: { roomId: room.id, groupId: payload.groupId, textLength: trimmed.length },
+  });
 
   return newMessage;
 }

@@ -10,6 +10,7 @@ import type { User, PasswordResetRequest } from '../types';
 import { supabase, isSupabaseEnabled, checkSupabaseHealth } from './supabaseClient';
 import { sha256Hex, EMPTY_STRING_HASH, setUserPasswordInCache } from './supabaseData';
 import { validateSessionToken, clearRedisSession, isRedisEnabled } from './redisClient';
+import { logAudit } from './auditLogger';
 
 export interface ApiError {
   code: string;
@@ -205,6 +206,7 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
     const adminUser = createFallbackAdminUser();
     setUserPasswordInCache(adminUser.id, passwordHash);
     activeSession = { user: adminUser, mustChangePassword: false };
+    void logAudit({ event: 'auth.login_success', level: 'security', source: 'client', actorId: adminUser.id, actorRole: 'admin', metadata: { mode: 'fallback' } });
     return {
       ok: true,
       data: { user: adminUser, mustChangePassword: false }
@@ -215,6 +217,7 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
     try {
       const { data, error } = await supabase.from('warroom_users').select('id, data');
       if (error) {
+        void logAudit({ event: 'auth.login_database_error', level: 'error', source: 'client', metadata: { code: error.code } });
         console.warn('[WarRoom Supabase Auth] خطا در خواندن کاربران:', error);
         return { ok: false, error: { code: 'AUTH_UNAVAILABLE', message: 'ارتباط با سامانه احراز هویت برقرار نشد.' } };
       }
@@ -247,8 +250,10 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
             delete (safeUser as any).password;
             const mustChange = Boolean(u.mustChangePassword);
             activeSession = { user: safeUser, mustChangePassword: mustChange };
+            void logAudit({ event: 'auth.login_success', level: 'security', source: 'client', actorId: safeUser.id, actorRole: safeUser.role });
             return { ok: true, data: { user: safeUser, mustChangePassword: mustChange } };
           }
+          void logAudit({ event: 'auth.login_failed', level: 'security', source: 'client', metadata: { reason: 'invalid_password' } });
           return { ok: false, error: { code: 'INVALID_CREDENTIALS', message: 'کد ملی یا رمز عبور اشتباه است.' } };
         }
 
@@ -406,12 +411,14 @@ export async function apiRegister(payload: Record<string, any>): Promise<ApiResu
   const safeUser: User = { ...newUser };
   delete (safeUser as any).password;
   activeSession = { user: safeUser, mustChangePassword: false };
+  void logAudit({ event: 'auth.registration_success', level: 'security', source: 'client', actorId: safeUser.id, actorRole: safeUser.role, metadata: { groupId: safeUser.group_id } });
 
   return { ok: true, data: { user: safeUser, mustChangePassword: false } };
 }
 
 export async function apiLogout(): Promise<ApiResult<{ message: string }>> {
   activeSession = null;
+  void logAudit({ event: 'auth.logout', level: 'security', source: 'client' });
   try {
     const sessionId = localStorage.getItem('warroom_session_id');
     if (sessionId) {

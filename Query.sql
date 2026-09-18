@@ -7,7 +7,7 @@
 --    ۳) کل این فایل را Paste کرده و Run کنید
 --
 --  این فایل «مکمل و جایگزین» فایل supabase/schema.sql است و شامل:
---    • ۱۸ جدول داده عمومی (الگوی سند JSONB: id متنی + ستون data از نوع jsonb)
+--    • جدول‌های کاربران، گروه‌ها، چت گروهی، محتوا، پرداخت و ثبت‌نام گروهی
 --    • 🛡️ ۵ جدول امنیتی سرور (اعتبارنامه‌ها، نشست‌ها، درخواست‌های تغییر رمز،
 --      رخدادهای امنیتی، تنظیمات امنیتی) — بدون هیچ سیاست عمومی (RLS بسته)
 --    • تریگر به‌روزرسانی خودکار updated_at
@@ -210,6 +210,13 @@ create table if not exists public.warroom_payment_transactions (
   updated_at timestamptz not null default now()
 );
 
+-- اعتبارنامه و وضعیت ثبت‌نام گروهی سرگروه؛ سقف پیش‌فرض هر گروه چهار نفر است.
+create table if not exists public.warroom_team_registration_sessions (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- ============================================================================
 --  🛡️  جدول‌های امنیتی (فقط برای بک‌اند سرور با کلید service_role)
 --      RLS فعال است و هیچ سیاستی برای anon/authenticated ساخته نمی‌شود.
@@ -281,7 +288,7 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests','warroom_payment_transactions','warroom_session_log','warroom_credentials','warroom_sessions',
+    'warroom_password_reset_requests','warroom_payment_transactions','warroom_team_registration_sessions','warroom_session_log','warroom_credentials','warroom_sessions',
     'warroom_password_resets','warroom_audit_log','warroom_security_kv'
   ]
   loop
@@ -316,6 +323,9 @@ create index if not exists idx_warroom_audit_at             on public.warroom_au
 create index if not exists idx_warroom_payment_user         on public.warroom_payment_transactions ((data->>'user_id'));
 create index if not exists idx_warroom_payment_status       on public.warroom_payment_transactions ((data->>'status'));
 create index if not exists idx_warroom_payment_created      on public.warroom_payment_transactions ((data->>'created_at'));
+create index if not exists idx_warroom_team_session_username on public.warroom_team_registration_sessions ((data->>'shared_username'));
+create index if not exists idx_warroom_team_session_group    on public.warroom_team_registration_sessions ((data->>'group_id'));
+create index if not exists idx_warroom_team_session_status   on public.warroom_team_registration_sessions ((data->>'status'));
 
 -- 🆕 قاعده «فقط یک ادمین»: ایندکس یکتای شرطی باعث می‌شود در کل دیتابیس
 --    فقط یک کاربر با role='admin' وجود داشته باشد (افزودن ادمین دوم خطا می‌دهد).
@@ -354,6 +364,7 @@ alter table public.warroom_game_portals      enable row level security;
 alter table public.warroom_kv                enable row level security;
 alter table public.warroom_password_reset_requests enable row level security;
 alter table public.warroom_payment_transactions enable row level security;
+alter table public.warroom_team_registration_sessions enable row level security;
 alter table public.warroom_session_log enable row level security;
 
 -- 🛡️ جدول‌های حساس: RLS فعال + «بدون سیاست» → هیچ دسترسی عمومی (anon/authenticated)
@@ -363,6 +374,17 @@ alter table public.warroom_sessions        enable row level security;
 alter table public.warroom_password_resets enable row level security;
 alter table public.warroom_audit_log       enable row level security;
 alter table public.warroom_security_kv     enable row level security;
+
+-- Client-side diagnostics may append sanitized events; reading and deleting logs
+-- remains restricted to the server/service_role.
+drop policy if exists "warroom_audit_append" on public.warroom_audit_log;
+create policy "warroom_audit_append" on public.warroom_audit_log
+  for insert to anon, authenticated
+  with check (
+    jsonb_typeof(data) = 'object'
+    and length(coalesce(data->>'event', '')) between 1 and 160
+    and data ? 'createdAt'
+  );
 
 do $$
 declare
@@ -374,7 +396,7 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests','warroom_payment_transactions','warroom_session_log'
+    'warroom_password_reset_requests','warroom_payment_transactions'
   ]
   loop
     execute format('drop policy if exists "warroom_public_access" on public.%I', t);
@@ -398,7 +420,10 @@ revoke all on public.warroom_credentials     from anon, authenticated;
 revoke all on public.warroom_sessions        from anon, authenticated;
 revoke all on public.warroom_password_resets from anon, authenticated;
 revoke all on public.warroom_audit_log       from anon, authenticated;
+grant insert on public.warroom_audit_log to anon, authenticated;
 revoke all on public.warroom_security_kv     from anon, authenticated;
+revoke all on public.warroom_session_log     from anon, authenticated;
+revoke all on public.warroom_team_registration_sessions from anon, authenticated;
 
 -- ----------------------------------------------------------------------------
 -- ۶) داده اولیه: پروفایل «مدیر ارشد عملیات» (ادمین پیش‌فرض)
