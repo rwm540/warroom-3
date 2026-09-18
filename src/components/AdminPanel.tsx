@@ -85,7 +85,7 @@ import {
 } from '../lib/backendApi';
 import { PasswordResetRequest } from '../types';
 import { showInternalToast, confirmInternal } from '../lib/appDialog';
-import { listAllGroupChats } from '../lib/groupChatService';
+import { listAllGroupChats, deleteGroupChatMessage } from '../lib/groupChatService';
 import AdminSoundtrackManager from './AdminSoundtrackManager';
 import PasswordResetsAdmin from './PasswordResetsAdmin';
 import AdminPaymentsPanel from './AdminPaymentsPanel';

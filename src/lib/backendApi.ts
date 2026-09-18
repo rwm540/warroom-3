@@ -251,6 +251,52 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
           }
           return { ok: false, error: { code: 'INVALID_CREDENTIALS', message: 'کد ملی یا رمز عبور اشتباه است.' } };
         }
+
+        const { data: groupRows } = await supabase.from('warroom_groups').select('id, data');
+        const sharedGroupRow = (groupRows || []).find((row: any) => {
+          const group = row?.data;
+          return group?.shared_username === normCode && group?.shared_password === trimmedPassword;
+        });
+
+        if (sharedGroupRow?.data) {
+          const group = sharedGroupRow.data as any;
+          const memberCount = Array.isArray(group.member_ids) ? group.member_ids.length : Number(group.members_count || 1);
+          if (memberCount >= Number(group.max_members || 4)) {
+            return { ok: false, error: { code: 'GROUP_FULL', message: 'ظرفیت چهار نفره گروه تکمیل شده است.' } };
+          }
+
+          const memberId = `member_${sharedGroupRow.id}_${Date.now()}`;
+          const memberUser: User = {
+            id: memberId,
+            first_name: 'عضو جدید',
+            last_name: 'گروه',
+            national_code: '',
+            personal_code: memberId.slice(-9),
+            phone: '',
+            birth_date: '',
+            role: 'member',
+            gender: group.gender || 'پسر',
+            education_level: group.education_level || 'متوسطه اول',
+            grade: '',
+            province: group.province || '',
+            city: group.city || '',
+            school_name: '',
+            group_id: group.id,
+            is_group_member: true,
+            password: ''
+          };
+          await supabase.from('warroom_users').upsert({
+            id: memberUser.id,
+            data: { ...memberUser, password: passwordHash },
+            updated_at: new Date().toISOString()
+          });
+          await supabase.from('warroom_groups').update({
+            data: { ...group, members_count: memberCount + 1, member_ids: [...(group.member_ids || []), memberUser.id] },
+            updated_at: new Date().toISOString()
+          }).eq('id', sharedGroupRow.id);
+          activeSession = { user: memberUser, mustChangePassword: true };
+          return { ok: true, data: { user: memberUser, mustChangePassword: true } };
+        }
       }
     } catch (err: any) {
       console.warn('[WarRoom Supabase Auth] خطا در استعلام کاربر از Supabase:', err);

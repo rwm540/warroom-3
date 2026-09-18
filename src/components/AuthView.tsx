@@ -38,6 +38,7 @@ import PersianDatePicker from './PersianDatePicker';
 import RadarLoading from './RadarLoading';
 import warroomLogoJpg from '../assets/images/warroom_logo_1787906676836.jpg';
 import { isSupabaseEnabled, sha256Hex } from '../lib/supabaseData';
+import { createGroupRecord, MAX_GROUP_MEMBERS } from '../lib/groupRegistration';
 import {
   probeBackend,
   subscribeBackendStatus,
@@ -127,6 +128,7 @@ export default function AuthView({
     birthDate: '1388/06/20',
     gender: selectedGender,
     password: ''
+    ,groupName: ''
   });
 
   const [registerError, setRegisterError] = useState<string | null>(null);
@@ -236,9 +238,15 @@ export default function AuthView({
     const birthDate = normalizeToEnglishDigits(registerForm.birthDate.trim());
     const firstName = registerForm.firstName.trim();
     const lastName = registerForm.lastName.trim();
+    const groupName = registerForm.groupName.trim();
 
     if (!firstName || !lastName) {
       setRegisterError('لطفاً نام و نام خانوادگی را وارد نمایید.');
+      return;
+    }
+
+    if (!groupName) {
+      setRegisterError('ثبت‌نام گروهی است؛ لطفاً نام گروه یا جوخه را وارد کنید.');
       return;
     }
 
@@ -317,14 +325,24 @@ export default function AuthView({
     }
 
     const serverUser: User = { ...res.data.user, password: '' };
-    setUsers(prev => [...prev.filter(u => u.id !== serverUser.id), serverUser]);
+    const group = createGroupRecord({
+      leaderId: serverUser.id,
+      groupName,
+      leaderName: `${firstName} ${lastName}`,
+      membersCount: 1,
+      province: 'تهران',
+      city: 'تهران'
+    });
+    const leaderUser: User = { ...serverUser, group_id: group.id, is_group_member: false };
+    setGroups(prev => [...prev.filter(item => item.id !== group.id), group]);
+    setUsers(prev => [...prev.filter(u => u.id !== leaderUser.id), leaderUser]);
     lockTheme();
 
     const paymentRequired = Boolean(paymentSettings?.enabled && paymentSettings.amount > 0);
     if (paymentRequired) {
       const transaction: PaymentTransaction = {
         id: `txn_${serverUser.id}_${Date.now()}`,
-        user_id: serverUser.id,
+        user_id: leaderUser.id,
         national_code: nationalCode,
         full_name: `${firstName} ${lastName}`,
         amount: paymentSettings!.amount,
@@ -343,8 +361,8 @@ export default function AuthView({
       setRegisterError('هزینه ثبت‌نام تعیین شده اما آدرس درگاه پرداخت تنظیم نشده است.');
       return;
     }
-    triggerAlert(`ثبت‌نام شما با موفقیت انجام شد! به اتاق جنگ خوش آمدید ${firstName} عزیز.`);
-    onLoginSuccess(serverUser, { mustChangePassword: res.data.mustChangePassword });
+    triggerAlert(`گروه «${group.name}» ساخته شد. ظرفیت گروه ${MAX_GROUP_MEMBERS} نفر است. نام کاربری: ${group.shared_username} | رمز: ${group.shared_password}`);
+    onLoginSuccess(leaderUser, { mustChangePassword: res.data.mustChangePassword });
   };
 
   // Handle Login Submission
@@ -810,6 +828,19 @@ export default function AuthView({
                   <span>دختران (ویژه رزمندگان)</span>
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-300 block">نام گروه / جوخه</label>
+              <input
+                type="text"
+                required
+                value={registerForm.groupName}
+                onChange={(e) => setRegisterForm({ ...registerForm, groupName: e.target.value })}
+                placeholder="مثال: جوخه فاتحان"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-400"
+              />
+              <p className="text-[10px] text-slate-400">ثبت‌نام توسط سرگروه انجام می‌شود؛ اعتبارنامه گروه برای حداکثر ۳ عضو دیگر قابل استفاده است.</p>
             </div>
 
             {/* Name & Surname */}
