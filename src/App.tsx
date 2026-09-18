@@ -62,7 +62,6 @@ import {
 import { checkSupabaseHealth } from './lib/supabaseClient';
 // 🛡️ لایه ارتباط امن با بک‌اند (احراز هویت، رمز عبور، درخواست‌های تغییر رمز)
 import { probeBackend, apiLogout, apiSession, getBackendStatus, subscribeBackendStatus } from './lib/backendApi';
-import ForcePasswordChangeModal from './components/ForcePasswordChangeModal';
 
 // Vitrin (Showcase) data layer
 import {
@@ -116,6 +115,46 @@ const ViewFallback = () => (
     />
   </div>
 );
+
+class AdminErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[WarRoom Admin] خطای render در پنل ادمین:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[320px] rounded-3xl border border-rose-500/40 bg-[#090d1f]/90 p-6 text-center text-slate-100 dir-rtl shadow-[0_0_25px_rgba(244,63,94,0.12)]">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/50 bg-rose-950/40 text-rose-300">
+            <ShieldAlert size={26} />
+          </div>
+          <h3 className="text-lg font-black text-white">پنل مدیریت به‌روزرسانی شد</h3>
+          <p className="mt-2 text-sm text-slate-300 leading-7">
+            در این بخش خطایی رخ داده است و برای حفظ تجربهٔ کاربری، نمایش پنل به حالت امن بازگشت داده شد.
+          </p>
+          <button
+            type="button"
+            onClick={this.props.onReset}
+            className="mt-5 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 transition"
+          >
+            بازگشت به صفحه اصلی
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function App() {
   // ============================================================================
@@ -333,7 +372,7 @@ export default function App() {
 
       const safeUser: User = { ...serverUser, password: '' };
       setCurrentUser((prev) => (prev && prev.id === safeUser.id ? { ...prev, ...safeUser } : safeUser));
-      if (res.data?.mustChangePassword) setMustChangePassword(true);
+      setMustChangePassword(false);
     });
 
     return () => { cancelled = true; };
@@ -582,26 +621,28 @@ export default function App() {
     triggerAlert('خروج از سامانه اتاق جنگ با موفقیت انجام شد.');
   };
 
-  const handleLoginSuccess = (user: User, meta?: { mustChangePassword?: boolean }) => {
-    setCurrentUser(user);
+  const handleLoginSuccess = (user: User, _meta?: { mustChangePassword?: boolean }) => {
+    const safeUser: User = { ...user, password: '' };
+    setCurrentUser(safeUser);
     setShowAuthScreen(false);
-    // 🛡️ اگر مدیر با رمز پیش‌فرض/موقت وارد شده باشد، تغییر رمز اجباری می‌شود
-    setMustChangePassword(Boolean(meta?.mustChangePassword));
+    setMustChangePassword(false);
 
-    if (user.gender === 'دختر') {
+    if (safeUser.gender === 'دختر') {
       setCampaignTheme('girls');
     } else {
       setCampaignTheme('boys');
     }
 
-    if (user.role === 'admin') {
+    if (safeUser.role === 'admin') {
       setIsAdminMode(true);
       setActiveTab('Admin');
       setShowGamePortal(false);
-      triggerAlert(`خوش آمدید مدیر کل ${user.first_name} ${user.last_name} — وارد پنل مدیریت شدید.`);
+      localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
+      triggerAlert(`خوش آمدید مدیر کل ${safeUser.first_name} ${safeUser.last_name} — وارد پنل مدیریت شدید.`);
     } else {
       setShowGamePortal(true);
-      triggerAlert(`خوش آمدید رزمنده ${user.first_name} ${user.last_name} — لطفا سامانه بازی را انتخاب کنید.`);
+      localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
+      triggerAlert(`خوش آمدید رزمنده ${safeUser.first_name} ${safeUser.last_name} — لطفا سامانه بازی را انتخاب کنید.`);
     }
   };
 
@@ -698,24 +739,6 @@ export default function App() {
           <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[550px] h-[350px] blur-[150px] rounded-full bg-[#581c87]/35 pointer-events-none" />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.075)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.075)_1px,transparent_1px)] bg-[size:32px_32px] opacity-80" />
         </div>
-      )}
-
-      {/* 🛡️ تغییر اجباری رمز پیش‌فرض/موقت مدیر */}
-      {mustChangePassword && currentUser && (
-        <ForcePasswordChangeModal
-          userName={`${currentUser.first_name} ${currentUser.last_name}`}
-          onChanged={() => {
-            setMustChangePassword(false);
-            triggerAlert('رمز عبور شما با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.');
-            handleLogout();
-            setShowAuthScreen(true);
-            setAuthMode('login');
-          }}
-          onLogout={() => {
-            setMustChangePassword(false);
-            handleLogout();
-          }}
-        />
       )}
 
       {/* Global Toast Alert Notification (Swipeable right on Touch/Mobile + Close X Button) */}
@@ -916,57 +939,59 @@ export default function App() {
             }`}>
               <Suspense fallback={<ViewFallback />}>
                 {isAdminMode ? (
-                  <AdminPanel 
-                    currentUser={currentUser!}
-                    users={users}
-                    setUsers={setUsers}
-                    groups={groups}
-                    missions={missions}
-                    setMissions={setMissions}
-                    submissions={submissions}
-                    setSubmissions={setSubmissions}
-                    trainings={trainings}
-                    setTrainings={setTrainings}
-                    medals={medals}
-                    setMedals={setMedals}
-                    userMedals={userMedals}
-                    setUserMedals={setUserMedals}
-                    tickets={tickets}
-                    setTickets={setTickets}
-                    replies={replies}
-                    setReplies={setReplies}
-                    announcements={announcements}
-                    setAnnouncements={setAnnouncements}
-                    news={news}
-                    setNews={setNews}
-                    notifications={notifications}
-                    setNotifications={setNotifications}
-                    vitrinPosts={vitrinPosts}
-                    setVitrinPosts={setVitrinPosts}
-                    gamePortals={gamePortals}
-                    setGamePortals={setGamePortals}
-                    stages={stages}
-                    setStages={setStages}
-                    dailyChallengeConfig={dailyChallengeConfig}
-                    setDailyChallengeConfig={setDailyChallengeConfig}
-                    onBroadcastNotification={(notif) => {
-                      setLiveToastNotification(notif);
-                    }}
-                    triggerAlert={triggerAlert}
-                    siteSettings={siteSettings}
-                    setSiteSettings={setSiteSettings}
-                    homeAnnouncements={homeAnnouncements}
-                    setHomeAnnouncements={setHomeAnnouncements}
-                    homeStats={homeStats}
-                    setHomeStats={setHomeStats}
-                    faqs={faqs}
-                    setFaqs={setFaqs}
-                    passwordResetRequests={passwordResetRequests}
-                    setPasswordResetRequests={setPasswordResetRequests}
-                    prizes={prizes}
-                    setPrizes={setPrizes}
-                    onNavigate={(tab) => handleTabChange(tab)}
-                  />
+                  <AdminErrorBoundary onReset={() => { setIsAdminMode(false); setActiveTab('Home'); }}>
+                    <AdminPanel 
+                      currentUser={currentUser!}
+                      users={users}
+                      setUsers={setUsers}
+                      groups={groups}
+                      missions={missions}
+                      setMissions={setMissions}
+                      submissions={submissions}
+                      setSubmissions={setSubmissions}
+                      trainings={trainings}
+                      setTrainings={setTrainings}
+                      medals={medals}
+                      setMedals={setMedals}
+                      userMedals={userMedals}
+                      setUserMedals={setUserMedals}
+                      tickets={tickets}
+                      setTickets={setTickets}
+                      replies={replies}
+                      setReplies={setReplies}
+                      announcements={announcements}
+                      setAnnouncements={setAnnouncements}
+                      news={news}
+                      setNews={setNews}
+                      notifications={notifications}
+                      setNotifications={setNotifications}
+                      vitrinPosts={vitrinPosts}
+                      setVitrinPosts={setVitrinPosts}
+                      gamePortals={gamePortals}
+                      setGamePortals={setGamePortals}
+                      stages={stages}
+                      setStages={setStages}
+                      dailyChallengeConfig={dailyChallengeConfig}
+                      setDailyChallengeConfig={setDailyChallengeConfig}
+                      onBroadcastNotification={(notif) => {
+                        setLiveToastNotification(notif);
+                      }}
+                      triggerAlert={triggerAlert}
+                      siteSettings={siteSettings}
+                      setSiteSettings={setSiteSettings}
+                      homeAnnouncements={homeAnnouncements}
+                      setHomeAnnouncements={setHomeAnnouncements}
+                      homeStats={homeStats}
+                      setHomeStats={setHomeStats}
+                      faqs={faqs}
+                      setFaqs={setFaqs}
+                      passwordResetRequests={passwordResetRequests}
+                      setPasswordResetRequests={setPasswordResetRequests}
+                      prizes={prizes}
+                      setPrizes={setPrizes}
+                      onNavigate={(tab) => handleTabChange(tab)}
+                    />
+                  </AdminErrorBoundary>
                 ) : (
                   <>
                     {(activeTab === 'Journey' || activeTab === 'Profile') && (

@@ -84,6 +84,7 @@ import {
 } from '../lib/backendApi';
 import { PasswordResetRequest } from '../types';
 import { showInternalToast, confirmInternal } from '../lib/appDialog';
+import { listAllGroupChats } from '../lib/groupChatService';
 import AdminSoundtrackManager from './AdminSoundtrackManager';
 import PasswordResetsAdmin from './PasswordResetsAdmin';
 import DashboardView from './DashboardView';
@@ -1194,7 +1195,9 @@ export default function AdminPanel({
 
   // Scroll to top when admin sub-tab changes
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
     const mainEl = document.querySelector('main');
     if (mainEl) mainEl.scrollTop = 0;
   }, [activeAdminTab]);
