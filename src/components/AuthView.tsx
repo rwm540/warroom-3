@@ -26,7 +26,7 @@ import {
   Send,
   X
 } from 'lucide-react';
-import { User, Group, RoleType, Gender } from '../types';
+import { User, Group, RoleType, Gender, PaymentSettings, PaymentTransaction } from '../types';
 import { 
   validateNationalCode, 
   validateJalaliDate, 
@@ -66,6 +66,9 @@ interface AuthViewProps {
   onBackToHome?: () => void;
   initialAuthMode?: 'login' | 'register_individual' | 'register_group';
   campaignTheme?: 'girls' | 'boys';
+  onGenderChange?: (gender: Gender) => void;
+  paymentSettings?: PaymentSettings;
+  addPaymentTransaction?: (transaction: PaymentTransaction) => void;
 }
 
 export default function AuthView({
@@ -78,7 +81,10 @@ export default function AuthView({
   onBackToHome,
   createLocalPasswordResetRequest,
   initialAuthMode = 'register_individual',
-  campaignTheme
+  campaignTheme,
+  onGenderChange,
+  paymentSettings,
+  addPaymentTransaction
 }: AuthViewProps) {
   // Tab state: 'register' vs 'login'
   const [activeTab, setActiveTab] = useState<'register' | 'login'>(
@@ -313,6 +319,30 @@ export default function AuthView({
     const serverUser: User = { ...res.data.user, password: '' };
     setUsers(prev => [...prev.filter(u => u.id !== serverUser.id), serverUser]);
     lockTheme();
+
+    const paymentRequired = Boolean(paymentSettings?.enabled && paymentSettings.amount > 0);
+    if (paymentRequired) {
+      const transaction: PaymentTransaction = {
+        id: `txn_${serverUser.id}_${Date.now()}`,
+        user_id: serverUser.id,
+        national_code: nationalCode,
+        full_name: `${firstName} ${lastName}`,
+        amount: paymentSettings!.amount,
+        currency: paymentSettings!.currency,
+        gateway: paymentSettings!.gateway,
+        status: 'pending',
+        payment_url: paymentSettings!.redirect_url || undefined,
+        created_at: new Date().toISOString()
+      };
+      addPaymentTransaction?.(transaction);
+      if (paymentSettings!.redirect_url) {
+        const separator = paymentSettings!.redirect_url.includes('?') ? '&' : '?';
+        window.location.assign(`${paymentSettings!.redirect_url}${separator}transaction_id=${encodeURIComponent(transaction.id)}&amount=${transaction.amount}`);
+        return;
+      }
+      setRegisterError('هزینه ثبت‌نام تعیین شده اما آدرس درگاه پرداخت تنظیم نشده است.');
+      return;
+    }
     triggerAlert(`ثبت‌نام شما با موفقیت انجام شد! به اتاق جنگ خوش آمدید ${firstName} عزیز.`);
     onLoginSuccess(serverUser, { mustChangePassword: res.data.mustChangePassword });
   };
@@ -388,6 +418,11 @@ export default function AuthView({
             avatar_url: ''
           }
         : null;
+
+    if (natId === '0012345678' && !syntheticAdmin) {
+      setLoginError('کد ملی یا رمز عبور اشتباه است.');
+      return;
+    }
 
     const user = syntheticAdmin || users.find(u =>
       normalizeToEnglishDigits(u.national_code) === natId ||
@@ -744,6 +779,7 @@ export default function AuthView({
                     setSelectedGender('پسر');
                     setRegisterForm({ ...registerForm, gender: 'پسر' });
                     localStorage.setItem('hisstory_theme_mode', 'boys');
+                    onGenderChange?.('پسر');
                     window.dispatchEvent(new Event('storage'));
                   }}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
@@ -761,6 +797,7 @@ export default function AuthView({
                     setSelectedGender('دختر');
                     setRegisterForm({ ...registerForm, gender: 'دختر' });
                     localStorage.setItem('hisstory_theme_mode', 'girls');
+                    onGenderChange?.('دختر');
                     window.dispatchEvent(new Event('storage'));
                   }}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${

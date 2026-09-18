@@ -20,8 +20,7 @@ const OBSOLETE_USER_KEYS = [
   'registrationData',
   'warroom_registered_users',
   'warroom_all_users',
-  'warroom_users_cache',
-  'warroom_current_user_data'
+  'warroom_users_cache'
 ];
 
 (function cleanupObsoleteUserData() {
@@ -32,7 +31,7 @@ const OBSOLETE_USER_KEYS = [
 
     if (localStorage.getItem('warroom_schema_version') !== WARROOM_SCHEMA_VERSION) {
       const keysToRemove = Object.keys(localStorage).filter(
-        (k) => k === 'warroom_users' || k === 'warroom_current_user_data' || k === 'warroom_users_cache'
+        (k) => k === 'warroom_users' || k === 'warroom_users_cache'
       );
       keysToRemove.forEach((k) => localStorage.removeItem(k));
       localStorage.setItem('warroom_schema_version', WARROOM_SCHEMA_VERSION);

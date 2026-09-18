@@ -7,6 +7,38 @@ export type TicketStatus = 'open' | 'in_progress' | 'answered' | 'closed';
 export type TicketPriority = 'normal' | 'important' | 'urgent';
 export type TargetRole = 'all' | 'user' | 'leader';
 
+export type PaymentGateway = 'zarinpal' | 'custom';
+export type PaymentTransactionStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
+
+export interface PaymentSettings {
+  id: string;
+  enabled: boolean;
+  amount: number;
+  currency: 'IRR' | 'IRT';
+  gateway: PaymentGateway;
+  api_key: string;
+  redirect_url: string;
+  callback_url: string;
+  description: string;
+  updated_at: string;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  user_id?: string;
+  national_code: string;
+  full_name: string;
+  amount: number;
+  currency: 'IRR' | 'IRT';
+  gateway: PaymentGateway;
+  authority?: string;
+  ref_id?: string;
+  status: PaymentTransactionStatus;
+  payment_url?: string;
+  created_at: string;
+  paid_at?: string;
+}
+
 export interface User {
   id: string;
   first_name: string;

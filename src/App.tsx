@@ -20,7 +20,9 @@ import {
   PasswordResetRequest,
   JourneyStage,
   DailyChallengeConfig,
-  PrizeItem
+  PrizeItem,
+  PaymentSettings,
+  PaymentTransaction
 } from './types';
 import { initialJourneyStages, initialDailyChallengeConfig } from './data/initialStages';
 
@@ -329,6 +331,29 @@ export default function App() {
     initial: []
   });
 
+  const [paymentSettings, setPaymentSettings] = useSyncedSetting<PaymentSettings>({
+    storageKey: 'warroom_payment_settings',
+    settingKey: 'payment_settings',
+    initial: () => ({
+      id: 'payment_settings',
+      enabled: false,
+      amount: 0,
+      currency: 'IRR',
+      gateway: 'zarinpal',
+      api_key: '',
+      redirect_url: '',
+      callback_url: '',
+      description: 'هزینه ثبت‌نام مسابقه اتاق جنگ',
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  const [paymentTransactions, setPaymentTransactions] = useSyncedCollection<PaymentTransaction>({
+    storageKey: 'warroom_payment_transactions',
+    table: 'warroom_payment_transactions',
+    initial: []
+  });
+
   // 🎁 مدیریت سیستم جوایز و کریستال‌ها — همگام با Supabase
   const [prizes, setPrizes] = useSyncedCollection<PrizeItem>({
     storageKey: 'warroom_prizes_list',
@@ -355,6 +380,33 @@ export default function App() {
   }, []);
 
   // 🛡️ اعتبارسنجی نشست سمت سرور هنگام بارگذاری برنامه:
+  const routeAuthenticatedUser = (user: User | null) => {
+    if (!user) {
+      setCurrentUser(null);
+      setIsAdminMode(false);
+      setShowAuthScreen(false);
+      setShowGamePortal(false);
+      setActiveTab('Home');
+      setMustChangePassword(false);
+      return;
+    }
+
+    const safeUser = { ...user, password: '' };
+    setCurrentUser(safeUser);
+    setMustChangePassword(false);
+    setShowAuthScreen(false);
+    setShowGamePortal(false);
+
+    if (safeUser.role === 'admin') {
+      setIsAdminMode(true);
+      setActiveTab('Admin');
+      return;
+    }
+
+    setIsAdminMode(false);
+    setActiveTab('Journey');
+  };
+
   useEffect(() => {
     if (!backendReady) return;
     let cancelled = false;
@@ -367,11 +419,15 @@ export default function App() {
         setCurrentUser(null);
         setIsAdminMode(false);
         setMustChangePassword(false);
+        setShowAuthScreen(false);
+        setShowGamePortal(false);
+        setActiveTab('Home');
         return;
       }
 
       const safeUser: User = { ...serverUser, password: '' };
       setCurrentUser((prev) => (prev && prev.id === safeUser.id ? { ...prev, ...safeUser } : safeUser));
+      routeAuthenticatedUser(safeUser);
       setMustChangePassword(false);
     });
 
@@ -464,8 +520,9 @@ export default function App() {
       if (!storedUser) return;
       const parsed = JSON.parse(storedUser) as User | null;
       if (parsed && parsed.id) {
-        setCurrentUser({ ...parsed, password: '' });
-        setShowAuthScreen(false);
+        const safeUser = { ...parsed, password: '' } as User;
+        setCurrentUser(safeUser);
+        routeAuthenticatedUser(safeUser);
       } else {
         localStorage.removeItem('warroom_current_user_data');
       }
@@ -493,7 +550,10 @@ export default function App() {
   }, [currentUser?.id]);
 
   // Active Campaign Theme: 'girls' vs 'boys'
-  const [campaignTheme, setCampaignTheme] = useState<'girls' | 'boys'>('boys');
+  const [campaignTheme, setCampaignTheme] = useState<'girls' | 'boys'>(() => {
+    const savedTheme = localStorage.getItem('hisstory_theme_mode');
+    return savedTheme === 'girls' ? 'girls' : 'boys';
+  });
 
   // UI Navigation State
   const [activeTab, setActiveTab] = useState<string>('Home');
@@ -536,9 +596,11 @@ export default function App() {
         setShowAuthScreen(false);
         triggerAlert(`ورود مستقیم به پنل مدیریت: ${currentUser.first_name} ${currentUser.last_name}`);
       } else {
-        setShowGamePortal(true);
+        setIsAdminMode(false);
+        setActiveTab('Journey');
+        setShowGamePortal(false);
         setShowAuthScreen(false);
-        triggerAlert(`ورود به درگاه انتخاب بازی: ${currentUser.first_name} ${currentUser.last_name}`);
+        triggerAlert(`ورود مستقیم به پنل کاربری: ${currentUser.first_name} ${currentUser.last_name}`);
       }
       return;
     }
@@ -644,13 +706,30 @@ export default function App() {
     triggerAlert('خروج از سامانه اتاق جنگ با موفقیت انجام شد.');
   };
 
-  const handleLoginSuccess = (user: User, _meta?: { mustChangePassword?: boolean }) => {
+  const handleLoginSuccess = async (user: User, _meta?: { mustChangePassword?: boolean }) => {
     const safeUser: User = { ...user, password: '' };
+    const sessionId = `warroom_session_${safeUser.id}_${Date.now()}`;
+    const sessionPayload = {
+      userId: safeUser.id,
+      expiresAt: String(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      role: safeUser.role,
+      name: `${safeUser.first_name} ${safeUser.last_name}`,
+    };
+
     setCurrentUser(safeUser);
     setShowAuthScreen(false);
+    setShowGamePortal(false);
     setMustChangePassword(false);
     localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
     localStorage.setItem('warroom_current_user_id', safeUser.id);
+    localStorage.setItem('warroom_session_id', sessionId);
+
+    try {
+      const { setRedisSession } = await import('./lib/redisClient');
+      await setRedisSession(sessionId, sessionPayload, 7 * 24 * 60 * 60);
+    } catch {
+      // Redis is optional; session remains localStorage-backed for app-level persistence.
+    }
 
     if (safeUser.gender === 'دختر') {
       setCampaignTheme('girls');
@@ -661,12 +740,13 @@ export default function App() {
     if (safeUser.role === 'admin') {
       setIsAdminMode(true);
       setActiveTab('Admin');
-      setShowGamePortal(false);
       triggerAlert(`خوش آمدید مدیر کل ${safeUser.first_name} ${safeUser.last_name} — وارد پنل مدیریت شدید.`);
-    } else {
-      setShowGamePortal(true);
-      triggerAlert(`خوش آمدید رزمنده ${safeUser.first_name} ${safeUser.last_name} — لطفا سامانه بازی را انتخاب کنید.`);
+      return;
     }
+
+    setIsAdminMode(false);
+    setActiveTab('Journey');
+    triggerAlert(`خوش آمدید رزمنده ${safeUser.first_name} ${safeUser.last_name} — وارد پنل کاربری شدید.`);
   };
 
   const handleSelectWarRoom = () => {
@@ -697,7 +777,9 @@ export default function App() {
         setShowAuthScreen(false);
         return;
       }
-      setShowGamePortal(true);
+      setIsAdminMode(false);
+      setActiveTab('Journey');
+      setShowGamePortal(false);
       setShowAuthScreen(false);
       return;
     }
@@ -835,11 +917,24 @@ export default function App() {
               onLoginSuccess={handleLoginSuccess}
               triggerAlert={triggerAlert}
               onBackToHome={() => {
+                const savedTheme = localStorage.getItem('hisstory_theme_mode');
+                if (savedTheme === 'girls' || savedTheme === 'boys') {
+                  setCampaignTheme(savedTheme);
+                }
                 setShowAuthScreen(false);
                 setActiveTab('Home');
               }}
               initialAuthMode={authMode}
               campaignTheme={campaignTheme}
+              onGenderChange={(gender) => {
+                const nextTheme = gender === 'دختر' ? 'girls' : 'boys';
+                setCampaignTheme(nextTheme);
+                localStorage.setItem('hisstory_theme_mode', nextTheme);
+              }}
+              paymentSettings={paymentSettings}
+              addPaymentTransaction={(transaction) => {
+                setPaymentTransactions(prev => [transaction, ...prev.filter(item => item.id !== transaction.id)]);
+              }}
               createLocalPasswordResetRequest={createLocalPasswordResetRequest}
             />
           </motion.div>
@@ -1012,6 +1107,9 @@ export default function App() {
                       setPasswordResetRequests={setPasswordResetRequests}
                       prizes={prizes}
                       setPrizes={setPrizes}
+                      paymentSettings={paymentSettings}
+                      setPaymentSettings={setPaymentSettings}
+                      paymentTransactions={paymentTransactions}
                       onNavigate={(tab) => handleTabChange(tab)}
                     />
                   </AdminErrorBoundary>

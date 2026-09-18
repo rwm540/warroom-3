@@ -69,7 +69,8 @@ import {
   Layout,
   X,
   Heart,
-  Loader2
+  Loader2,
+  CreditCard
 } from 'lucide-react';
 import { defaultHomeButtons } from '../data/home';
 import { VitrinPost, buildVitrinPostFromSubmission } from '../data/vitrinData';
@@ -87,6 +88,7 @@ import { showInternalToast, confirmInternal } from '../lib/appDialog';
 import { listAllGroupChats } from '../lib/groupChatService';
 import AdminSoundtrackManager from './AdminSoundtrackManager';
 import PasswordResetsAdmin from './PasswordResetsAdmin';
+import AdminPaymentsPanel from './AdminPaymentsPanel';
 import DashboardView from './DashboardView';
 import ElementorVisualEditorModal from './ElementorVisualEditorModal';
 import PersianDatePicker from './PersianDatePicker';
@@ -117,7 +119,9 @@ import {
   JourneyStage,
   StageQuizQuestion,
   DailyChallengeConfig,
-  PrizeItem
+  PrizeItem,
+  PaymentSettings,
+  PaymentTransaction
 } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { playNotificationSound } from '../utils/audioAlert';
@@ -183,6 +187,9 @@ interface AdminPanelProps {
   setPasswordResetRequests: React.Dispatch<React.SetStateAction<PasswordResetRequest[]>>;
   prizes?: PrizeItem[];
   setPrizes?: React.Dispatch<React.SetStateAction<PrizeItem[]>>;
+  paymentSettings: PaymentSettings;
+  setPaymentSettings: (settings: PaymentSettings) => void;
+  paymentTransactions: PaymentTransaction[];
   onNavigate?: (tab: string) => void;
 }
 
@@ -233,10 +240,13 @@ export default function AdminPanel({
   setPasswordResetRequests,
   prizes = [],
   setPrizes,
+  paymentSettings,
+  setPaymentSettings,
+  paymentTransactions,
   onNavigate
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets' | 'stage_builder' | 'prizes'
+    'overview' | 'submissions' | 'users' | 'missions' | 'trainings' | 'medals' | 'tickets' | 'news' | 'site_editor' | 'notifications' | 'soundtracks' | 'portals' | 'vitrins' | 'password_resets' | 'stage_builder' | 'prizes' | 'payments'
   >('submissions');
 
   // 🛡️ وضعیت بک‌اند امن (برای مدیریت امن رمز کاربران)
@@ -1983,15 +1993,15 @@ export default function AdminPanel({
         </button>
 
         <button
-          onClick={() => setActiveAdminTab('trainings')}
+          onClick={() => setActiveAdminTab('payments')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl whitespace-nowrap shrink-0 transition border ${
-            activeAdminTab === 'trainings' 
-              ? 'bg-amber-500 text-slate-950 border-amber-400 font-black' 
+            activeAdminTab === 'payments'
+              ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
               : 'bg-[#080d21] text-slate-400 border-slate-800 hover:text-white'
           }`}
         >
-          <BookOpen size={15} />
-          <span>آموزش‌ها ({trainings.length})</span>
+          <CreditCard size={15} />
+          <span>پرداختی‌ها</span>
         </button>
 
         <button
@@ -2107,7 +2117,7 @@ export default function AdminPanel({
             setReplies={setReplies}
             triggerAlert={triggerAlert}
             onNavigate={(tab) => {
-              if (tab === 'submissions' || tab === 'users' || tab === 'missions' || tab === 'medals' || tab === 'tickets' || tab === 'trainings' || tab === 'soundtracks' || tab === 'notifications') {
+              if (tab === 'submissions' || tab === 'users' || tab === 'missions' || tab === 'medals' || tab === 'tickets' || tab === 'soundtracks' || tab === 'notifications') {
                 setActiveAdminTab(tab as any);
               } else if (onNavigate) {
                 onNavigate(tab);
@@ -3959,6 +3969,15 @@ export default function AdminPanel({
           </div>
 
         </div>
+      )}
+
+      {activeAdminTab === 'payments' && (
+        <AdminPaymentsPanel
+          settings={paymentSettings}
+          setSettings={setPaymentSettings}
+          transactions={paymentTransactions}
+          triggerAlert={triggerAlert}
+        />
       )}
 
       {/* 6. TRAININGS CRUD & EDIT TAB */}

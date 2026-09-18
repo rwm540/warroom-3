@@ -17,11 +17,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const defaultUrl = 'https://dewfcjxlfolwvxqofocc.supabase.co';
 const defaultPublishableKey = 'sb_publishable_lKVXnauR3xtIlsqmKWuVog_HOtRK97j';
+const runtimeEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 
-const supabaseUrl = ((import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim()) || defaultUrl;
-const supabasePublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim();
-const supabasePublicKey = (import.meta.env.VITE_SUPABASE_PUBLIC_KEY as string | undefined)?.trim();
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+const supabaseUrl = runtimeEnv?.VITE_SUPABASE_URL?.trim() || defaultUrl;
+const supabasePublishableKey = runtimeEnv?.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+const supabasePublicKey = runtimeEnv?.VITE_SUPABASE_PUBLIC_KEY?.trim();
+const supabaseAnonKey = runtimeEnv?.VITE_SUPABASE_ANON_KEY?.trim();
 
 /**
  * انتخاب کلید فعال:

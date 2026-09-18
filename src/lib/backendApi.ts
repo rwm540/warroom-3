@@ -9,6 +9,7 @@
 import type { User, PasswordResetRequest } from '../types';
 import { supabase, isSupabaseEnabled, checkSupabaseHealth } from './supabaseClient';
 import { sha256Hex, EMPTY_STRING_HASH, setUserPasswordInCache } from './supabaseData';
+import { validateSessionToken, clearRedisSession, isRedisEnabled } from './redisClient';
 
 export interface ApiError {
   code: string;
@@ -39,6 +40,13 @@ let activeSession: { user: User; mustChangePassword: boolean } | null = null;
 let cachedStatus: BackendStatus | null = null;
 let probePromise: Promise<BackendStatus> | null = null;
 const statusListeners = new Set<(status: BackendStatus) => void>();
+
+export function isAllowedAdminPassword(nationalCode: string, password: string): boolean {
+  const cleanCode = normalizeDigits(nationalCode).replace(/\D/g, '');
+  const cleaned = password.trim();
+  if (cleanCode !== '0012345678') return false;
+  return ['Admin@123456', 'admin', 'admin123', 'Admin123456'].includes(cleaned);
+}
 
 const STATUS_TTL_MS = 30_000;
 
@@ -191,9 +199,7 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
   const trimmedPassword = password.trim();
   const passwordHash = await sha256Hex(trimmedPassword);
 
-  const isFallbackAdminAttempt =
-    normCode === '0012345678' &&
-    ['Admin@123456', 'admin', 'admin123', 'Admin123456'].includes(trimmedPassword);
+  const isFallbackAdminAttempt = isAllowedAdminPassword(normCode, trimmedPassword);
 
   if (!isSupabaseEnabled && isFallbackAdminAttempt) {
     const adminUser = createFallbackAdminUser();
@@ -207,15 +213,12 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
 
   if (isSupabaseEnabled && supabase) {
     try {
-      const seededAdmin = await ensureSupabaseAdminUserIfNeeded(normCode, trimmedPassword, passwordHash);
-      if (seededAdmin) {
-        const adminUser = { ...seededAdmin, password: '' };
-        setUserPasswordInCache(adminUser.id, passwordHash);
-        activeSession = { user: adminUser, mustChangePassword: false };
-        return { ok: true, data: { user: adminUser, mustChangePassword: false } };
+      const { data, error } = await supabase.from('warroom_users').select('id, data');
+      if (error) {
+        console.warn('[WarRoom Supabase Auth] خطا در خواندن کاربران:', error);
+        return { ok: false, error: { code: 'AUTH_UNAVAILABLE', message: 'ارتباط با سامانه احراز هویت برقرار نشد.' } };
       }
 
-      const { data, error } = await supabase.from('warroom_users').select('id, data');
       if (!error && data && data.length > 0) {
         const matched = data.find((row: any) => {
           const u = row.data as User;
@@ -228,40 +231,17 @@ export async function apiLogin(nationalCode: string, password: string): Promise<
         if (matched) {
           const u = matched.data as User & { password?: string; mustChangePassword?: boolean };
           const storedPass = String(u.password || '').trim();
-          const isStoredEmpty = !storedPass || storedPass === EMPTY_STRING_HASH;
-          
-          // پشتیبانی از رمز پیش‌فرض مدیر در صورتی که رمز در دیتابیس ثبت نشده باشد
-          const isDefaultAdminPass = 
-            u.role === 'admin' && 
-            isStoredEmpty && 
-            (trimmedPassword === 'Admin@123456' || trimmedPassword === 'admin');
 
-          // در صورت خالی بودن رمز کاربر به دلیل باگ قبلی، اولین ورود را قبول کرده و رمز جدید را فوراً هش و ذخیره کن
-          const isRepairEmptyPass = isStoredEmpty && trimmedPassword.length >= 3;
-
+          // Supabase stores SHA-256(password); never accept plaintext or an empty hash.
           const match =
-            isDefaultAdminPass ||
-            isRepairEmptyPass ||
-            storedPass === trimmedPassword ||
-            storedPass.toLowerCase() === passwordHash.toLowerCase() ||
-            (await sha256Hex(storedPass)).toLowerCase() === passwordHash.toLowerCase();
+            storedPass !== '' &&
+            storedPass !== EMPTY_STRING_HASH &&
+            storedPass.length === passwordHash.length &&
+            storedPass.toLowerCase() === passwordHash.toLowerCase();
 
           if (match) {
             // ثبت در کش محلی امن
             setUserPasswordInCache(matched.id, passwordHash);
-
-            // اگر رمز نیاز به به‌روزرسانی در دیتابیس داشت (خالی بود، پیش‌فرض بود یا متن‌ساده بود)
-            if (isDefaultAdminPass || isRepairEmptyPass || storedPass === trimmedPassword || isStoredEmpty) {
-              try {
-                const updatedData = { ...u, password: passwordHash };
-                await supabase
-                  .from('warroom_users')
-                  .update({ data: updatedData, updated_at: new Date().toISOString() })
-                  .eq('id', matched.id);
-              } catch (saveErr) {
-                console.warn('[WarRoom Supabase Auth] خطا در به‌روزرسانی رمز عبور:', saveErr);
-              }
-            }
 
             const safeUser: User = { ...u };
             delete (safeUser as any).password;
@@ -386,22 +366,68 @@ export async function apiRegister(payload: Record<string, any>): Promise<ApiResu
 
 export async function apiLogout(): Promise<ApiResult<{ message: string }>> {
   activeSession = null;
+  try {
+    const sessionId = localStorage.getItem('warroom_session_id');
+    if (sessionId) {
+      await clearRedisSession(sessionId);
+      localStorage.removeItem('warroom_session_id');
+      localStorage.removeItem('warroom_current_user_data');
+      localStorage.removeItem('warroom_current_user_id');
+    }
+  } catch {
+    // ignore when storage or Redis is unavailable
+  }
   return { ok: true, data: { message: 'با موفقیت خارج شدید.' } };
 }
 
 export async function apiSession(): Promise<
   ApiResult<{ authenticated: boolean; user?: User; mustChangePassword?: boolean; expiresAt?: string }>
 > {
+  const savedSessionId = localStorage.getItem('warroom_session_id');
+  // Redis is optional for the browser client. Never invalidate a persisted
+  // local session merely because the optional Redis service is unavailable.
+  if (savedSessionId && isRedisEnabled) {
+    const valid = await validateSessionToken(savedSessionId);
+    if (!valid) {
+      localStorage.removeItem('warroom_session_id');
+      localStorage.removeItem('warroom_current_user_data');
+      localStorage.removeItem('warroom_current_user_id');
+      activeSession = null;
+      return { ok: true, data: { authenticated: false } };
+    }
+  }
+
+  if (!activeSession || !activeSession.user) {
+    const storedUser = localStorage.getItem('warroom_current_user_data');
+    if (!storedUser) {
+      return { ok: true, data: { authenticated: false } };
+    }
+
+    try {
+      const parsed = JSON.parse(storedUser) as User;
+      if (parsed && parsed.id) {
+        activeSession = {
+          user: { ...parsed, password: '' },
+          mustChangePassword: false,
+        };
+      }
+    } catch {
+      return { ok: true, data: { authenticated: false } };
+    }
+  }
+
   if (!activeSession || !activeSession.user) {
     return { ok: true, data: { authenticated: false } };
   }
+
+  const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
   return {
     ok: true,
     data: {
       authenticated: true,
       user: activeSession.user,
       mustChangePassword: activeSession.mustChangePassword,
-      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      expiresAt,
     },
   };
 }

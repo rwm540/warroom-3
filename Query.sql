@@ -203,10 +203,25 @@ create table if not exists public.warroom_password_reset_requests (
   updated_at timestamptz not null default now()
 );
 
+-- پرداخت‌ها و تراکنش‌های ثبت‌نام؛ هر تغییر وضعیت در data ثبت و قابل audit است.
+create table if not exists public.warroom_payment_transactions (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- ============================================================================
 --  🛡️  جدول‌های امنیتی (فقط برای بک‌اند سرور با کلید service_role)
 --      RLS فعال است و هیچ سیاستی برای anon/authenticated ساخته نمی‌شود.
 -- ============================================================================
+
+-- Redis-ready sessions metadata: session IDs are stored in Redis, but the DB keeps a
+-- signed record for audit and validation purposes.
+create table if not exists public.warroom_session_log (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
 
 -- اعتبارنامه‌ها: فقط هش scrypt + Salt (هرگز متن ساده)
 create table if not exists public.warroom_credentials (
@@ -266,7 +281,7 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests','warroom_credentials','warroom_sessions',
+    'warroom_password_reset_requests','warroom_payment_transactions','warroom_session_log','warroom_credentials','warroom_sessions',
     'warroom_password_resets','warroom_audit_log','warroom_security_kv'
   ]
   loop
@@ -298,6 +313,9 @@ create index if not exists idx_warroom_resets_status        on public.warroom_pa
 create index if not exists idx_warroom_resets_user          on public.warroom_password_resets ((data->>'user_id'));
 create index if not exists idx_warroom_resets_code          on public.warroom_password_resets ((data->>'tracking_code'));
 create index if not exists idx_warroom_audit_at             on public.warroom_audit_log (updated_at desc);
+create index if not exists idx_warroom_payment_user         on public.warroom_payment_transactions ((data->>'user_id'));
+create index if not exists idx_warroom_payment_status       on public.warroom_payment_transactions ((data->>'status'));
+create index if not exists idx_warroom_payment_created      on public.warroom_payment_transactions ((data->>'created_at'));
 
 -- 🆕 قاعده «فقط یک ادمین»: ایندکس یکتای شرطی باعث می‌شود در کل دیتابیس
 --    فقط یک کاربر با role='admin' وجود داشته باشد (افزودن ادمین دوم خطا می‌دهد).
@@ -335,6 +353,8 @@ alter table public.warroom_vitrin_comments   enable row level security;
 alter table public.warroom_game_portals      enable row level security;
 alter table public.warroom_kv                enable row level security;
 alter table public.warroom_password_reset_requests enable row level security;
+alter table public.warroom_payment_transactions enable row level security;
+alter table public.warroom_session_log enable row level security;
 
 -- 🛡️ جدول‌های حساس: RLS فعال + «بدون سیاست» → هیچ دسترسی عمومی (anon/authenticated)
 --    فقط کلید service_role (صرفاً روی سرور) می‌تواند بخواند/بنویسد.
@@ -354,7 +374,7 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests'
+    'warroom_password_reset_requests','warroom_payment_transactions','warroom_session_log'
   ]
   loop
     execute format('drop policy if exists "warroom_public_access" on public.%I', t);
@@ -447,7 +467,8 @@ begin
       public.warroom_vitrin_comments,
       public.warroom_game_portals,
       public.warroom_kv,
-      public.warroom_password_reset_requests;
+      public.warroom_password_reset_requests,
+      public.warroom_payment_transactions;
   end if;
 exception
   when others then
