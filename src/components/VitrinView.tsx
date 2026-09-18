@@ -16,12 +16,14 @@ import {
   User as UserIcon,
   ThumbsUp,
   Loader2,
-  ArrowDown
+  ArrowDown,
+  Video
 } from 'lucide-react';
 import { User } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
 import { playTacticalSound } from '../utils/epicBgmEngine';
 import RadarLoading from './RadarLoading';
+import SavedVitrinReelsModal from './SavedVitrinReelsModal';
 import { 
   VitrinPost, 
   VitrinComment, 
@@ -126,6 +128,9 @@ export default function VitrinView({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [visiblePostsCount, posts.length, isLoadingNextPost]);
+
+  const [showSavedReelsModal, setShowSavedReelsModal] = useState(false);
+  const savedPostsCount = posts.filter(p => p.isBookmarked).length;
 
   // Active expandable comments section on feed cards
   const [expandedCommentsPostId, setExpandedCommentsPostId] = useState<string | null>(null);
@@ -330,6 +335,41 @@ export default function VitrinView({
 
   return (
     <div className="space-y-5 dir-rtl pb-28 max-w-4xl mx-auto px-2.5 sm:px-4 pt-1 font-sans select-none">
+      
+      {/* 1. Header Section with Saved Button */}
+      <div className="flex items-center justify-between bg-slate-950/40 p-4 rounded-3xl border border-slate-800 shadow-xl backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-2xl border shadow-md ${
+            isGirls 
+              ? 'bg-pink-950/80 text-pink-400 border-pink-700/50' 
+              : 'bg-cyan-950/80 text-cyan-400 border-cyan-700/50'
+          }`}>
+            <Sparkles size={22} className="animate-pulse" />
+          </div>
+          <div>
+            <h1 className="text-sm sm:text-base font-black text-white">ویترین آثار و دست‌سازه‌ها</h1>
+            <p className="text-[10px] text-slate-400 mt-0.5">نمایش برترین مأموریت‌های انجام‌شده توسط رزمندگان</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            playTacticalSound('click');
+            setShowSavedReelsModal(true);
+          }}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 to-rose-500/20 border border-amber-500/40 text-amber-300 hover:text-white hover:border-amber-400 text-xs font-bold transition shadow-sm group cursor-pointer"
+          title="مشاهده ویدیوها و آثار ذخیره‌شده"
+        >
+          <Bookmark size={16} className="fill-amber-400 text-amber-400 group-hover:scale-110 transition" />
+          <span className="hidden sm:inline">ذخیره‌های ویترین</span>
+          {savedPostsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black bg-amber-400 text-black">
+              {formatToPersianDigits(savedPostsCount)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* 2. Instagram Feed / Timeline Stream with 1-by-1 Post Lazy Loading */}
       <div className="max-w-xl mx-auto space-y-6">
         {posts.length === 0 && (
@@ -716,6 +756,14 @@ export default function VitrinView({
           </div>
         )}
       </div>
+
+      <SavedVitrinReelsModal
+        isOpen={showSavedReelsModal}
+        onClose={() => setShowSavedReelsModal(false)}
+        currentUser={currentUser}
+        triggerAlert={triggerAlert}
+        onNavigateToVitrin={() => setShowSavedReelsModal(false)}
+      />
 
       {/* 3. Full-Screen Interactive Media Modal with 1-5 Star Rating & Comments */}
       {selectedPost && (

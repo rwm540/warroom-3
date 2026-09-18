@@ -9,10 +9,10 @@ interface LoadingScreenProps {
 
 export default function LoadingScreen({ onComplete, isGirls }: LoadingScreenProps) {
   useEffect(() => {
-    // Total duration: ~2.0 seconds smooth transition
+    // Total duration: 0.1 seconds (as requested for minimal delay)
     const timer = setTimeout(() => {
       onComplete();
-    }, 2000);
+    }, 100);
 
     return () => clearTimeout(timer);
   }, [onComplete]);

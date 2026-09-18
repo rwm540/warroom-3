@@ -202,24 +202,6 @@ export default function Navbar({
             {/* User Controls / Status */}
             {currentUser && (
               <>
-                {/* Notification Bell Button */}
-                <button
-                  onClick={onOpenNotifications}
-                  className={`relative p-2 rounded-xl transition cursor-pointer border flex items-center justify-center ${
-                    unreadNotificationsCount > 0
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                      : 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
-                  }`}
-                  title="مرکز پیام‌ها و اعلانات هوشمند"
-                >
-                  <Bell size={16} className={unreadNotificationsCount > 0 ? 'animate-bounce text-amber-400' : ''} />
-                  {unreadNotificationsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-mono text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-slate-950 shadow-md">
-                      {formatToPersianDigits(unreadNotificationsCount)}
-                    </span>
-                  )}
-                </button>
-
                 {/* Logout Button */}
                 <button
                   onClick={onLogout}

@@ -441,19 +441,7 @@ export default function JourneyView({
                 <span className="text-[11px] sm:text-xs whitespace-nowrap">راهنمای مسیر و فرمانده</span>
               </button>
 
-              <button
-                onClick={() => setShowSavedReelsModal(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-rose-500/20 border border-amber-500/40 text-amber-300 hover:text-white hover:border-amber-400 text-xs font-bold transition shadow-sm group cursor-pointer shrink-0"
-                title="مشاهده ویدیوها و آثار ذخیره‌شده ویترین (فید ریلز)"
-              >
-                <Bookmark size={14} className="fill-amber-400 text-amber-400 group-hover:scale-110 transition shrink-0" />
-                <span className="text-[11px] sm:text-xs whitespace-nowrap">ذخیره‌های ویترین</span>
-                {savedPostsCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black bg-amber-400 text-black">
-                    {formatToPersianDigits(savedPostsCount)}
-                  </span>
-                )}
-              </button>
+
 
               {/* Military Commander / Tactical Announcements (Responsive by Gender) */}
               <button
@@ -475,20 +463,8 @@ export default function JourneyView({
               </button>
             </div>
 
-            {/* Left/End Actions: User Welcome, Profile & Badges Trigger */}
+            {/* Left/End Actions: User Welcome & Badges Status */}
             <div className="flex items-center gap-2 sm:gap-3 flex-nowrap shrink-0">
-              <button
-                onClick={() => {
-                  setProfileSubTab('dossier');
-                  setShowProfileDrawer(true);
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 to-cyan-500/20 border border-amber-500/40 text-amber-300 hover:text-white hover:border-amber-400 text-xs font-bold transition shadow-sm group cursor-pointer shrink-0"
-                title="مشاهده شناسنامه، پروفایل و نشان‌های رزمنده"
-              >
-                <Award size={14} className="text-amber-400 group-hover:scale-110 transition shrink-0" />
-                <span className="text-[11px] sm:text-xs whitespace-nowrap">پروفایل و نشان‌ها</span>
-              </button>
-
               <div className="text-left shrink-0">
                 <h2 className="text-xs sm:text-sm font-black text-white leading-tight flex items-center justify-end gap-1.5 whitespace-nowrap">
                   <span>سلام</span>
@@ -952,38 +928,52 @@ export default function JourneyView({
         )}
       </AnimatePresence>
 
-      {/* ========================================================================= */}
       {/* 6. ROUTE GUIDE MODAL (راهنمای مسیر)                                      */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {showGuideModal && (
-          <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 dir-rtl overflow-y-auto">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 dir-rtl overflow-hidden">
+            {/* Backdrop - Separate layer for clean blur and click-to-close */}
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#0b1222] border border-cyan-500/40 rounded-3xl max-w-md w-full p-4 sm:p-5 space-y-4 shadow-2xl my-auto max-h-[85vh] sm:max-h-[88vh] overflow-y-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowGuideModal(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md cursor-pointer"
+            />
+
+            {/* Modal Card - Fixed center, internal scroll only */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              className="bg-[#0f172a] border border-cyan-500/50 rounded-[2.5rem] max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-[0_0_60px_rgba(6,182,212,0.3)] relative z-10 overflow-y-auto max-h-[92vh] scrollbar-hide"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2.5 text-cyan-400 font-black text-base">
-                  <Compass size={22} className="animate-spin-slow" />
-                  <span>راهنمای نقشه و دستورات فرمانده قرارگاه</span>
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-5">
+                <div className="flex items-center gap-4 text-cyan-400">
+                  <div className="p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-700/50 shadow-lg shadow-cyan-950/40">
+                    <Compass size={26} className="animate-spin-slow" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white">راهنمای نقشه و دستورات فرمانده</h2>
+                    <p className="text-[11px] text-slate-400 mt-1">پروتکل عملیاتی هفت‌خوان مقاومت</p>
+                  </div>
                 </div>
                 <button 
                   onClick={() => setShowGuideModal(false)}
-                  className="p-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                  className="p-2.5 rounded-2xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition cursor-pointer hover:bg-slate-800"
                   title="بستن پنجره"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
 
               {/* COMMANDER AVATAR & TAC DEBRIEFING CARD */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-[#071329] via-[#0d1f3d] to-[#08152c] border border-cyan-500/50 relative overflow-hidden shadow-lg space-y-3">
-                
-                <div className="flex items-center gap-3.5">
+              <div className="p-5 rounded-[2rem] bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] border border-slate-800 relative overflow-hidden shadow-2xl space-y-5">
+                <div className="flex items-center gap-4.5">
                   {/* Commander Avatar Frame */}
-                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-[2px] bg-gradient-to-tr from-amber-400 via-cyan-400 to-emerald-400 shadow-[0_0_20px_rgba(6,182,212,0.4)] shrink-0">
+                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-[2px] bg-gradient-to-tr from-amber-400 via-cyan-400 to-emerald-400 shadow-[0_0_20px_rgba(6,182,212,0.3)] shrink-0">
                     <div className="w-full h-full bg-[#050b18] rounded-[14px] overflow-hidden relative">
                       <img 
                         src="https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80" 
@@ -991,80 +981,62 @@ export default function JourneyView({
                         className="w-full h-full object-cover object-top"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#050b18]/70 via-transparent to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                     </div>
-                    {/* Live Online Indicator */}
-                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#071329] animate-pulse" />
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#0f172a] animate-pulse" />
                   </div>
 
-                  {/* Commander Identity & Titles */}
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  {/* Commander Identity */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
                         فرماندهی ارشد عملیات
                       </span>
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                        اتاق فرماندهی آنلاین
-                      </span>
                     </div>
-
-                    <h3 className="text-base sm:text-lg font-black text-white">
-                      سردار ستاد قرارگاه تاکتیکی اتاق جنگ
-                    </h3>
-                    <p className="text-[11px] text-cyan-300 font-bold">
-                      راهبر عالی عملیات‌های هفت‌خوان دانش‌آموزی مقاومت
-                    </p>
+                    <h3 className="text-base sm:text-lg font-black text-white leading-tight">سردار ستاد قرارگاه تاکتیکی</h3>
+                    <p className="text-[11px] text-cyan-400 font-bold">راهبر عالی عملیات‌های هفت‌خوان</p>
                   </div>
                 </div>
 
-                {/* Commander's Strategic Briefing Speech Bubble */}
-                <div className="bg-[#050b18]/85 p-3 rounded-xl border border-cyan-800/40 text-xs text-slate-200 leading-relaxed relative space-y-1.5">
-                  <div className="text-amber-400 font-black flex items-center gap-1.5 text-[11px]">
-                    <Sparkles size={13} />
-                    <span>دستورالعمل تاکتیکی فرمانده برای رزمندگان:</span>
+                {/* Briefing Speech Bubble */}
+                <div className="bg-slate-950/60 p-4.5 rounded-2xl border border-slate-800/80 text-slate-300 leading-relaxed space-y-2.5">
+                  <div className="text-amber-400 font-black flex items-center gap-2 text-[11px]">
+                    <Sparkles size={14} />
+                    <span>دستورالعمل تاکتیکی فرمانده:</span>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed">
-                    «رزمندگان غیور! نقشه هفت‌خوان پیش روی شما، میدان فتح و محک آمادگی علمی، بصیرتی و عملیاتی است. با کلیک بر روی هر یک از آیکون‌های مسیر، وارد آزمون‌های زمان‌دار چهارگزینه‌ای به همراه عکس‌ها و فیلم‌های توجیهی مرحله می‌شوید. زمان تایمر محدود است؛ با تمرکز و مشورت با جوخه، گزینه‌های صحیح را انتخاب کنید تا بالاترین کریستال‌های امتیاز به حسابتان افزوده شود.»
+                  <p className="text-[13px] leading-relaxed text-justify">
+                    «رزمندگان غیور! نقشه هفت‌خوان پیش روی شما، میدان فتح و محک آمادگی است. با کلیک بر روی آیکون‌های مسیر، وارد آزمون‌های زمان‌دار می‌شوید. زمان محدود است؛ با تمرکز و مشورت، گزینه‌های صحیح را انتخاب کنید.»
                   </p>
                 </div>
-
               </div>
 
               {/* Status Legend */}
-              <div className="space-y-2.5 text-xs text-slate-300">
-                <span className="font-bold text-slate-400 block text-[11px]">راهنمای وضعیت آیکون‌های مراحل روی نقشه:</span>
+              <div className="space-y-3.5 px-1">
+                <span className="font-bold text-slate-500 block text-[11px] uppercase tracking-wider">وضعیت المان‌های نقشه:</span>
                 
-                <div className="flex items-start gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-emerald-400 text-sm shrink-0">🟢</span>
-                  <div>
-                    <strong className="text-white block">مراحل سبز (فتح‌شده):</strong>
-                    <span>مراحلی که آزمون ۴ گزینه‌ای و مأموریت آن تکمیل گردیده و مدال‌های آن به شما تعلق گرفته است. (می‌توانید جهت مرور دوباره روی آن کلیک کنید).</span>
+                <div className="grid gap-2.5 text-xs">
+                  <div className="flex items-center gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/60">
+                    <span className="text-emerald-500 text-xl leading-none">●</span>
+                    <span className="text-slate-300"><strong>مراحل فتح‌شده:</strong> مأموریت با موفقیت به پایان رسیده است.</span>
                   </div>
-                </div>
 
-                <div className="flex items-start gap-2.5 bg-amber-950/20 p-2.5 rounded-xl border border-amber-500/40">
-                  <span className="text-amber-400 text-sm shrink-0 animate-pulse">🟡</span>
-                  <div>
-                    <strong className="text-amber-300 block">مراحل طلایی (مرحله جاری):</strong>
-                    <span>مرحله فعال کنونی شما؛ با کلیک روی آن فوراً آزمون زمان‌دار ۴ گزینه‌ای با فیلم و تصویر آغاز می‌شود.</span>
+                  <div className="flex items-center gap-4 bg-amber-500/10 p-4 rounded-2xl border border-amber-500/20">
+                    <span className="text-amber-500 text-xl leading-none animate-pulse">●</span>
+                    <span className="text-amber-200"><strong>مرحله جاری:</strong> مرحله فعال و آماده شروع عملیات جدید.</span>
                   </div>
-                </div>
 
-                <div className="flex items-start gap-2.5 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-400 text-sm shrink-0">🔒</span>
-                  <div>
-                    <strong className="text-slate-300 block">مراحل قفل‌شده (آتی):</strong>
-                    <span>پس از پاسخ به سوالات مرحله جاری و افزایش امتیاز کریستال‌ها، به صورت خودکار بازگشایی می‌شوند.</span>
+                  <div className="flex items-center gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/60 opacity-60">
+                    <span className="text-slate-500 text-xl leading-none">🔒</span>
+                    <span className="text-slate-400"><strong>مراحل قفل‌شده:</strong> پس از پیروزی در مرحله قبل باز می‌شوند.</span>
                   </div>
                 </div>
               </div>
 
               <button
                 onClick={() => setShowGuideModal(false)}
-                className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-xs py-3 rounded-xl transition shadow-lg shadow-cyan-950/40 cursor-pointer"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm py-4.5 rounded-[1.5rem] transition shadow-2xl shadow-cyan-900/40 cursor-pointer active:scale-[0.98]"
               >
-                تایید، اجرای دستورات فرمانده و بازگشت به نقشه
+                تایید و ورود به نقشه عملیاتی
               </button>
             </motion.div>
           </div>
@@ -1143,17 +1115,7 @@ export default function JourneyView({
                   <span className="hidden sm:inline">آواتار تاکتیکی</span>
                   <span className="sm:hidden">آواتار</span>
                 </button>
-                <button
-                  onClick={() => setProfileSubTab('saved')}
-                  className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                    profileSubTab === 'saved'
-                      ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Bookmark size={14} className={profileSubTab === 'saved' ? 'fill-slate-950' : 'fill-amber-400 text-amber-400'} />
-                  <span>ذخیره‌ها ({formatToPersianDigits(savedPostsCount)})</span>
-                </button>
+
               </div>
 
               {/* TAB 1: DOSSIER (شناسنامه) */}
@@ -1307,33 +1269,7 @@ export default function JourneyView({
                 </div>
               )}
 
-              {/* TAB 4: SAVED VITRIN POSTS (ذخیره‌های ویترین) */}
-              {profileSubTab === 'saved' && (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent border border-amber-500/40 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-black text-white flex items-center gap-2">
-                        <Video size={16} className="text-amber-400" />
-                        <span>فید ریلز آثار ذخیره‌شده ویترین</span>
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-black">
-                        {formatToPersianDigits(savedPostsCount)} اثر ذخیره
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      تمام ویدیوها، مستندات جهادی و دست‌سازه‌هایی که در ویترین نشان‌گذاری کرده‌اید به صورت فید ریلز ویدیویی در دسترس شماست.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowSavedReelsModal(true)}
-                      className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-black text-xs transition shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <Play size={15} className="fill-slate-950" />
-                      <span>باز کردن پخش‌کننده ریلز ذخیره‌ها</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {/* Close / Action footer */}
               <div className="border-t border-slate-800 pt-3 flex items-center justify-between">
@@ -1352,19 +1288,7 @@ export default function JourneyView({
         )}
       </AnimatePresence>
 
-      {/* ========================================================================= */}
-      {/* 8. SAVED VITRIN REELS MODAL (پخش‌کننده ریلز آثار ذخیره‌شده)                 */}
-      {/* ========================================================================= */}
-      <SavedVitrinReelsModal
-        isOpen={showSavedReelsModal}
-        onClose={() => setShowSavedReelsModal(false)}
-        currentUser={currentUser}
-        triggerAlert={triggerAlert}
-        onNavigateToVitrin={() => {
-          setShowSavedReelsModal(false);
-          onNavigateTab?.('Vitrin');
-        }}
-      />
+
 
       {/* ========================================================================= */}
       {/* 9. DAILY CHALLENGE MODAL (مودال اختصاصی چالش روزانه)                       */}

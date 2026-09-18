@@ -6542,24 +6542,7 @@ export default function AdminPanel({
                   />
                 </div>
 
-                {/* Direct High-Visibility In-Form Submit Button */}
-                <div className="sm:col-span-2 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-3">
-                  <button
-                    type="submit"
-                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-amber-400 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm shadow-[0_0_25px_rgba(6,182,212,0.4)] transition flex items-center justify-center gap-2 cursor-pointer"
-                    id="btn-submit-stage-inner"
-                  >
-                    <Check size={18} className="stroke-[3]" />
-                    <span>{editingStage ? 'ثبت و اعمال تغییرات مرحله' : 'ثبت مرحله جدید و ذخیره در نقشه بازی'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowStageModal(false)}
-                    className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-bold transition cursor-pointer"
-                  >
-                    انصراف
-                  </button>
-                </div>
+
 
               </div>
             </form>
