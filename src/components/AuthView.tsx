@@ -609,23 +609,19 @@ export default function AuthView({
       }`}>
 
         {/* 1. Luminous Neon Logo Header (Clean - No unnecessary text) */}
-        <div className="flex flex-col items-center justify-center space-y-2 mb-3.5 text-center">
-          <div className={`relative p-1.5 rounded-2xl transition-transform hover:scale-105 duration-300 ${
+        <div className="flex flex-col items-center justify-center mb-3.5 text-center">
+          <div className={`relative -translate-y-1 transition-transform hover:scale-105 duration-300 ${
             isGirls ? 'neon-logo-glow-girls' : 'neon-logo-glow'
           }`}>
             <img 
               src={warroomLogoJpg} 
               alt="لوگوی اتاق جنگ" 
               referrerPolicy="no-referrer"
-              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-2xl border-2 border-white/20 shadow-2xl"
+              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-none border-0 shadow-none"
             />
           </div>
 
-          <h1 className={`text-xl sm:text-2xl font-black tracking-tight ${
-            isGirls ? 'neon-text-girls' : 'neon-text-cyan'
-          }`}>
-            اتاق جنگ
-          </h1>
+          <div className="h-4" aria-hidden="true" />
 
           {/* Mode Switcher Tabs */}
           <div className="w-full grid grid-cols-2 gap-1 p-1 rounded-2xl bg-slate-950/90 border border-slate-800">

@@ -16,8 +16,14 @@ function readStore(): Record<string, { room: GroupChatRoom; messages: GroupChatM
 
 function writeStore(store: Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }>) {
   try {
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(store));
+    const payload = JSON.stringify(store);
+    localStorage.setItem(CHAT_STORAGE_KEY, payload);
     window.dispatchEvent(new CustomEvent(CHAT_EVENT_NAME, { detail: store }));
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAT_STORAGE_KEY, newValue: payload }));
+    } catch {
+      // 일부 مرورگرها StorageEvent را مستقیم نمی‌پذیرند؛ در این حالت CustomEvent کفایت می‌کند.
+    }
   } catch {
     // localStorage may be unavailable in some contexts; fail quietly.
   }
@@ -130,17 +136,37 @@ export function getGroupChatStats(groupId: string, users: User[] = []): {
 }
 
 export function subscribeGroupChat(roomId: string, onChange: (messages: GroupChatMessage[]) => void): () => void {
+  const handleUpdate = () => {
+    const roomEntry = Object.values(readStore()).find(entry => entry?.room?.id === roomId);
+    onChange(roomEntry?.messages ?? []);
+  };
+
   const listener = (event: Event) => {
-    const detail = (event as CustomEvent).detail as Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }> | undefined;
-    if (!detail) return;
-    const roomEntry = Object.values(detail).find(entry => entry?.room?.id === roomId);
-    if (roomEntry) onChange(roomEntry.messages ?? []);
+    const customDetail = (event as CustomEvent).detail as Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }> | undefined;
+    if (customDetail) {
+      const roomEntry = Object.values(customDetail).find(entry => entry?.room?.id === roomId);
+      if (roomEntry) onChange(roomEntry.messages ?? []);
+      return;
+    }
+
+    const storageEvent = event as StorageEvent;
+    if (storageEvent.key === CHAT_STORAGE_KEY && storageEvent.newValue) {
+      try {
+        const nextStore = JSON.parse(storageEvent.newValue) as Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }>;
+        const roomEntry = Object.values(nextStore).find(entry => entry?.room?.id === roomId);
+        if (roomEntry) onChange(roomEntry.messages ?? []);
+      } catch {
+        handleUpdate();
+      }
+    }
   };
 
   window.addEventListener(CHAT_EVENT_NAME, listener);
+  window.addEventListener('storage', listener);
   onChange(listGroupChatMessages(roomId));
 
   return () => {
     window.removeEventListener(CHAT_EVENT_NAME, listener);
+    window.removeEventListener('storage', listener);
   };
 }
