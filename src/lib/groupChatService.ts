@@ -1,11 +1,16 @@
 import { GroupChatMessage, GroupChatRoom, User } from '../types';
+import { isSupabaseEnabled, supabase } from './supabaseClient';
 
 const CHAT_STORAGE_KEY = 'warroom_group_chat_store_v1';
 const CHAT_EVENT_NAME = 'warroom_group_chat_updated';
 
-function readStore(): Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }> {
+type ChatStoreEntry = { room: GroupChatRoom; messages: GroupChatMessage[] };
+type ChatStore = Record<string, ChatStoreEntry>;
+
+function readStore(): ChatStore {
+  if (typeof window === 'undefined' || !window.localStorage) return {};
   try {
-    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    const raw = window.localStorage.getItem(CHAT_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
@@ -14,54 +19,190 @@ function readStore(): Record<string, { room: GroupChatRoom; messages: GroupChatM
   }
 }
 
-function writeStore(store: Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }>) {
+function writeStore(store: ChatStore) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     const payload = JSON.stringify(store);
-    localStorage.setItem(CHAT_STORAGE_KEY, payload);
-    window.dispatchEvent(new CustomEvent(CHAT_EVENT_NAME, { detail: store }));
-    try {
-      window.dispatchEvent(new StorageEvent('storage', { key: CHAT_STORAGE_KEY, newValue: payload }));
-    } catch {
-      // 일부 مرورگرها StorageEvent را مستقیم نمی‌پذیرند؛ در این حالت CustomEvent کفایت می‌کند.
+    window.localStorage.setItem(CHAT_STORAGE_KEY, payload);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CHAT_EVENT_NAME, { detail: store }));
+      try {
+        window.dispatchEvent(new StorageEvent('storage', { key: CHAT_STORAGE_KEY, newValue: payload }));
+      } catch {
+        // برخي مرورگرها StorageEvent را مستقيماً نمی‌پذیرند.
+      }
     }
   } catch {
     // localStorage may be unavailable in some contexts; fail quietly.
   }
 }
 
-export function ensureGroupChatRoom(groupId: string, groupName: string, memberIds: string[]): GroupChatRoom {
-  const store = readStore();
-  const key = groupId || 'default-group';
-  const existing = store[key]?.room;
+function normalizeRoomRecord(record: any): GroupChatRoom | null {
+  if (!record || typeof record !== 'object') return null;
+  const room = record.data && typeof record.data === 'object' ? record.data : record;
+  const id = String(room?.id || record?.id || '').trim();
+  if (!id) return null;
 
-  if (existing) {
-    const nextRoom = { ...existing, name: groupName || existing.name, member_ids: Array.from(new Set(memberIds.length ? memberIds : existing.member_ids)) };
-    store[key] = { ...store[key], room: nextRoom };
-    writeStore(store);
-    return nextRoom;
+  return {
+    id,
+    group_id: String(room?.group_id || room?.groupId || ''),
+    name: String(room?.name || 'گروه تیم'),
+    member_ids: Array.isArray(room?.member_ids) ? room.member_ids.map(String).filter(Boolean) : [],
+    created_at: room?.created_at || new Date().toISOString(),
+    updated_at: room?.updated_at || room?.created_at || new Date().toISOString(),
+    unread_count: typeof room?.unread_count === 'number' ? room.unread_count : undefined,
+  };
+}
+
+function normalizeMessageRecord(record: any): GroupChatMessage | null {
+  if (!record || typeof record !== 'object') return null;
+  const message = record.data && typeof record.data === 'object' ? record.data : record;
+  const id = String(message?.id || record?.id || '').trim();
+  if (!id) return null;
+
+  return {
+    id,
+    room_id: String(message?.room_id || ''),
+    group_id: String(message?.group_id || ''),
+    user_id: String(message?.user_id || ''),
+    user_name: String(message?.user_name || 'کاربر'),
+    avatar_url: message?.avatar_url || undefined,
+    text: String(message?.text || ''),
+    created_at: message?.created_at || new Date().toISOString(),
+    is_system: Boolean(message?.is_system),
+  };
+}
+
+function buildRoomKey(roomOrGroupId: string, fallback: string): string {
+  return roomOrGroupId || fallback || 'default-group';
+}
+
+function syncLocalStoreFromEntries(entries: Array<{ room: GroupChatRoom; messages: GroupChatMessage[] }>) {
+  const nextStore: ChatStore = {};
+  for (const entry of entries) {
+    const key = buildRoomKey(entry.room?.group_id || entry.room?.id, entry.room?.id || 'default-group');
+    nextStore[key] = {
+      room: entry.room,
+      messages: Array.isArray(entry.messages) ? entry.messages : [],
+    };
+  }
+  writeStore(nextStore);
+}
+
+function hydrateChatStoreFromSupabase() {
+  if (!isSupabaseEnabled || !supabase) return;
+
+  void Promise.all([
+    supabase.from('warroom_group_chat_rooms').select('id, data').order('updated_at', { ascending: false }),
+    supabase.from('warroom_group_chat_messages').select('id, data').order('created_at', { ascending: true }),
+  ])
+    .then(([roomsRes, messagesRes]) => {
+      const rooms = (roomsRes.data || [])
+        .map(normalizeRoomRecord)
+        .filter((room): room is GroupChatRoom => Boolean(room));
+
+      const messages = (messagesRes.data || [])
+        .map(normalizeMessageRecord)
+        .filter((message): message is GroupChatMessage => Boolean(message));
+
+      const roomsMap = new Map<string, ChatStoreEntry>();
+      for (const room of rooms) {
+        roomsMap.set(room.id, { room, messages: [] });
+      }
+
+      for (const message of messages) {
+        const entry = roomsMap.get(message.room_id) ?? {
+          room: {
+            id: message.room_id,
+            group_id: message.group_id,
+            name: 'گروه تیم',
+            member_ids: [],
+            created_at: message.created_at,
+            updated_at: message.created_at,
+          },
+          messages: [],
+        };
+        entry.messages.push(message);
+        roomsMap.set(message.room_id, entry);
+      }
+
+      const result = Array.from(roomsMap.values()).map(entry => ({
+        room: entry.room,
+        messages: entry.messages
+          .slice()
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+      }));
+
+      if (result.length) {
+        syncLocalStoreFromEntries(result);
+      }
+    })
+    .catch(() => {
+      // در حالت اشتراک ناموفق، حالت محلی ادامه می‌یابد.
+    });
+}
+
+function ensureRoomInLocalStore(room: GroupChatRoom, messages: GroupChatMessage[] = []): ChatStore {
+  const store = readStore();
+  const key = buildRoomKey(room.group_id || room.id, room.id);
+  store[key] = { room, messages };
+  writeStore(store);
+  return store;
+}
+
+export function ensureGroupChatRoom(groupId: string, groupName: string, memberIds: string[]): GroupChatRoom {
+  const normalizedMembers = Array.from(new Set((memberIds || []).map(String).filter(Boolean)));
+  const store = readStore();
+  const roomKey = buildRoomKey(groupId, 'default-group');
+  const existing = store[roomKey]?.room;
+  const room: GroupChatRoom = existing
+    ? {
+        ...existing,
+        group_id: groupId || existing.group_id,
+        name: groupName || existing.name,
+        member_ids: normalizedMembers.length ? normalizedMembers : existing.member_ids,
+        updated_at: new Date().toISOString(),
+      }
+    : {
+        id: `room_${groupId || Date.now()}`,
+        group_id: groupId,
+        name: groupName || 'گروه تیم',
+        member_ids: normalizedMembers,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+  const existingMessages = store[roomKey]?.messages ?? [];
+  ensureRoomInLocalStore(room, existingMessages);
+
+  if (isSupabaseEnabled && supabase) {
+    void supabase
+      .from('warroom_group_chat_rooms')
+      .upsert({
+        id: room.id,
+        data: room,
+        updated_at: new Date().toISOString(),
+      })
+      .catch(() => undefined);
   }
 
-  const room: GroupChatRoom = {
-    id: `room_${groupId || Date.now()}`,
-    group_id: groupId,
-    name: groupName || 'گروه تیم',
-    member_ids: Array.from(new Set(memberIds)),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  store[key] = { room, messages: [] };
-  writeStore(store);
   return room;
 }
 
 export function listGroupChatMessages(roomId: string): GroupChatMessage[] {
   const store = readStore();
   const roomEntry = Object.values(store).find(entry => entry?.room?.id === roomId);
-  return roomEntry?.messages ?? [];
+  const items = roomEntry?.messages ?? [];
+  if (!items.length && isSupabaseEnabled && supabase) {
+    hydrateChatStoreFromSupabase();
+  }
+  return items.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
 export function listAllGroupChats(): Array<{ room: GroupChatRoom; messages: GroupChatMessage[] }> {
+  if (isSupabaseEnabled && supabase) {
+    hydrateChatStoreFromSupabase();
+  }
   const store = readStore();
   return Object.values(store)
     .filter(Boolean)
@@ -77,9 +218,18 @@ export function deleteGroupChatMessage(roomId: string, messageId: string): boole
   const key = Object.keys(store).find(item => store[item]?.room?.id === roomId);
   if (!key) return false;
 
-  const messages = (store[key]?.messages ?? []).filter(message => message.id !== messageId);
-  store[key] = { ...store[key], room: { ...store[key].room, updated_at: new Date().toISOString() }, messages };
+  const nextMessages = (store[key]?.messages ?? []).filter(message => message.id !== messageId);
+  store[key] = {
+    ...store[key],
+    room: { ...store[key].room, updated_at: new Date().toISOString() },
+    messages: nextMessages,
+  };
   writeStore(store);
+
+  if (isSupabaseEnabled && supabase) {
+    void supabase.from('warroom_group_chat_messages').delete().eq('id', messageId).catch(() => undefined);
+  }
+
   return true;
 }
 
@@ -111,11 +261,31 @@ export function appendGroupChatMessage(payload: {
     is_system: Boolean(payload.isSystem),
   };
 
-  const nextMessages = [...(roomEntry?.messages ?? []), newMessage].slice(-200);
-  const updatedStore = { ...store };
-  const targetKey = Object.keys(store).find(key => store[key]?.room?.id === payload.roomId) || room.group_id || 'default-group';
-  updatedStore[targetKey] = { room: { ...room, updated_at: new Date().toISOString() }, messages: nextMessages };
-  writeStore(updatedStore);
+  const targetKey = Object.keys(store).find(key => store[key]?.room?.id === payload.roomId) || buildRoomKey(room.group_id || room.id, room.id);
+  const nextMessages = [...(store[targetKey]?.messages ?? roomEntry?.messages ?? []), newMessage].slice(-200);
+  const nextStore = { ...store, [targetKey]: { room: { ...room, updated_at: new Date().toISOString() }, messages: nextMessages } };
+  writeStore(nextStore);
+
+  if (isSupabaseEnabled && supabase) {
+    void supabase
+      .from('warroom_group_chat_messages')
+      .upsert({
+        id: newMessage.id,
+        data: newMessage,
+        updated_at: new Date().toISOString(),
+      })
+      .catch(() => undefined);
+
+    void supabase
+      .from('warroom_group_chat_rooms')
+      .upsert({
+        id: room.id,
+        data: { ...room, updated_at: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      })
+      .catch(() => undefined);
+  }
+
   return newMessage;
 }
 
@@ -138,35 +308,88 @@ export function getGroupChatStats(groupId: string, users: User[] = []): {
 export function subscribeGroupChat(roomId: string, onChange: (messages: GroupChatMessage[]) => void): () => void {
   const handleUpdate = () => {
     const roomEntry = Object.values(readStore()).find(entry => entry?.room?.id === roomId);
-    onChange(roomEntry?.messages ?? []);
+    const messages = roomEntry?.messages ?? [];
+    onChange(messages.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
   };
 
   const listener = (event: Event) => {
-    const customDetail = (event as CustomEvent).detail as Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }> | undefined;
+    const customDetail = (event as CustomEvent).detail as ChatStore | undefined;
     if (customDetail) {
       const roomEntry = Object.values(customDetail).find(entry => entry?.room?.id === roomId);
-      if (roomEntry) onChange(roomEntry.messages ?? []);
+      if (roomEntry) {
+        onChange((roomEntry.messages ?? []).slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+      }
       return;
     }
 
     const storageEvent = event as StorageEvent;
     if (storageEvent.key === CHAT_STORAGE_KEY && storageEvent.newValue) {
       try {
-        const nextStore = JSON.parse(storageEvent.newValue) as Record<string, { room: GroupChatRoom; messages: GroupChatMessage[] }>;
+        const nextStore = JSON.parse(storageEvent.newValue) as ChatStore;
         const roomEntry = Object.values(nextStore).find(entry => entry?.room?.id === roomId);
-        if (roomEntry) onChange(roomEntry.messages ?? []);
+        if (roomEntry) {
+          onChange((roomEntry.messages ?? []).slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+        }
       } catch {
         handleUpdate();
       }
     }
   };
 
-  window.addEventListener(CHAT_EVENT_NAME, listener);
-  window.addEventListener('storage', listener);
-  onChange(listGroupChatMessages(roomId));
+  if (typeof window !== 'undefined') {
+    window.addEventListener(CHAT_EVENT_NAME, listener);
+    window.addEventListener('storage', listener);
+  }
 
+  if (isSupabaseEnabled && supabase) {
+    const channel = supabase.channel(`warroom_group_chat_${roomId}`);
+    const roomSubscription = channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'warroom_group_chat_messages' }, (payload: any) => {
+        const record = payload.new ?? payload.old;
+        const message = normalizeMessageRecord(record);
+        if (!message || message.room_id !== roomId) return;
+        handleUpdate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'warroom_group_chat_rooms' }, (payload: any) => {
+        const room = normalizeRoomRecord(payload.new ?? payload.old);
+        if (!room || room.id !== roomId) return;
+        handleUpdate();
+      })
+      .subscribe();
+
+    const unsubscribe = () => {
+      try {
+        void supabase.removeChannel(roomSubscription);
+      } catch {
+        // ignore
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(CHAT_EVENT_NAME, listener);
+        window.removeEventListener('storage', listener);
+      }
+    };
+
+    handleUpdate();
+    void supabase.from('warroom_group_chat_messages').select('id, data').eq('data->>room_id', roomId).order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const nextMessages = ((data || []) as any[]) .map(normalizeMessageRecord).filter((message): message is GroupChatMessage => Boolean(message));
+        const store = readStore();
+        const targetKey = Object.keys(store).find(key => store[key]?.room?.id === roomId) || roomId;
+        const roomEntry = store[targetKey];
+        const room = roomEntry?.room ?? { id: roomId, group_id: '', name: 'گروه تیم', member_ids: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        ensureRoomInLocalStore(room, nextMessages);
+        onChange(nextMessages.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+      })
+      .catch(() => handleUpdate());
+
+    return unsubscribe;
+  }
+
+  handleUpdate();
   return () => {
-    window.removeEventListener(CHAT_EVENT_NAME, listener);
-    window.removeEventListener('storage', listener);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(CHAT_EVENT_NAME, listener);
+      window.removeEventListener('storage', listener);
+    }
   };
 }

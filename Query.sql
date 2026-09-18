@@ -55,6 +55,20 @@ create table if not exists public.warroom_groups (
   updated_at timestamptz not null default now()
 );
 
+-- اتاق‌های چت گروهی
+create table if not exists public.warroom_group_chat_rooms (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- پیام‌های چت گروهی
+create table if not exists public.warroom_group_chat_messages (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- مأموریت‌ها
 create table if not exists public.warroom_missions (
   id         text primary key,
@@ -247,7 +261,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'warroom_users','warroom_groups','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
+    'warroom_users','warroom_groups','warroom_group_chat_rooms','warroom_group_chat_messages','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
     'warroom_trainings','warroom_medals','warroom_user_medals',
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
@@ -300,24 +314,26 @@ create unique index if not exists idx_warroom_users_single_admin
 
 alter table public.warroom_users              enable row level security;
 alter table public.warroom_groups             enable row level security;
-alter table public.warroom_stages             enable row level security;
-alter table public.warroom_prizes             enable row level security;
-alter table public.warroom_missions           enable row level security;
-alter table public.warroom_submissions        enable row level security;
-alter table public.warroom_trainings          enable row level security;
-alter table public.warroom_medals             enable row level security;
-alter table public.warroom_user_medals        enable row level security;
-alter table public.warroom_support_tickets    enable row level security;
-alter table public.warroom_support_replies    enable row level security;
-alter table public.warroom_announcements      enable row level security;
-alter table public.warroom_news               enable row level security;
-alter table public.warroom_notifications      enable row level security;
+alter table public.warroom_group_chat_rooms  enable row level security;
+alter table public.warroom_group_chat_messages enable row level security;
+alter table public.warroom_stages            enable row level security;
+alter table public.warroom_prizes            enable row level security;
+alter table public.warroom_missions          enable row level security;
+alter table public.warroom_submissions       enable row level security;
+alter table public.warroom_trainings         enable row level security;
+alter table public.warroom_medals            enable row level security;
+alter table public.warroom_user_medals       enable row level security;
+alter table public.warroom_support_tickets   enable row level security;
+alter table public.warroom_support_replies   enable row level security;
+alter table public.warroom_announcements     enable row level security;
+alter table public.warroom_news              enable row level security;
+alter table public.warroom_notifications     enable row level security;
 alter table public.warroom_home_announcements enable row level security;
-alter table public.warroom_faqs               enable row level security;
-alter table public.warroom_vitrin_posts       enable row level security;
-alter table public.warroom_vitrin_comments    enable row level security;
-alter table public.warroom_game_portals       enable row level security;
-alter table public.warroom_kv                 enable row level security;
+alter table public.warroom_faqs              enable row level security;
+alter table public.warroom_vitrin_posts      enable row level security;
+alter table public.warroom_vitrin_comments   enable row level security;
+alter table public.warroom_game_portals      enable row level security;
+alter table public.warroom_kv                enable row level security;
 alter table public.warroom_password_reset_requests enable row level security;
 
 -- 🛡️ جدول‌های حساس: RLS فعال + «بدون سیاست» → هیچ دسترسی عمومی (anon/authenticated)
@@ -333,7 +349,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'warroom_users','warroom_groups','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
+    'warroom_users','warroom_groups','warroom_group_chat_rooms','warroom_group_chat_messages','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
     'warroom_trainings','warroom_medals','warroom_user_medals',
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
@@ -416,6 +432,8 @@ begin
       public.warroom_missions,
       public.warroom_submissions,
       public.warroom_groups,
+      public.warroom_group_chat_rooms,
+      public.warroom_group_chat_messages,
       public.warroom_stages,
       public.warroom_prizes,
       public.warroom_trainings,

@@ -1,25 +1,55 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MessageCircle, Send, ShieldCheck, Users } from 'lucide-react';
-import { User } from '../types';
+import { Group, User } from '../types';
 import { appendGroupChatMessage, ensureGroupChatRoom, getGroupChatStats, listGroupChatMessages, subscribeGroupChat } from '../lib/groupChatService';
 
 interface GroupChatPanelProps {
   currentUser: User | null;
   users: User[];
+  groups?: Group[];
+  isAdminMode?: boolean;
 }
 
-export default function GroupChatPanel({ currentUser, users }: GroupChatPanelProps) {
-  const groupId = currentUser?.group_id || '';
+export default function GroupChatPanel({ currentUser, users, groups = [], isAdminMode = false }: GroupChatPanelProps) {
+  const isAdminUser = currentUser?.role === 'admin';
+  const adminGroupOptions = useMemo(
+    () => groups.filter(group => Boolean(group?.id)).map(group => ({ id: group.id, name: group.name })),
+    [groups]
+  );
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+
+  useEffect(() => {
+    if (!isAdminUser && !isAdminMode) {
+      setSelectedGroupId(currentUser?.group_id || '');
+      return;
+    }
+
+    if (adminGroupOptions.length === 0) {
+      setSelectedGroupId('');
+      return;
+    }
+
+    if (!selectedGroupId || !adminGroupOptions.some(group => group.id === selectedGroupId)) {
+      setSelectedGroupId(adminGroupOptions[0].id);
+    }
+  }, [adminGroupOptions, currentUser?.group_id, isAdminMode, isAdminUser, selectedGroupId]);
+
+  const adminChatActive = isAdminMode || isAdminUser;
+  const effectiveGroupId = adminChatActive ? (selectedGroupId || currentUser?.group_id || '') : (currentUser?.group_id || '');
+  const effectiveGroupName = adminChatActive
+    ? (groups.find(group => group.id === effectiveGroupId)?.name || 'چت گروهی')
+    : (currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'گروه تیم');
+
   const memberIds = useMemo(() => {
-    if (!groupId) return [];
-    return users.filter(user => user.group_id === groupId).map(user => user.id);
-  }, [groupId, users]);
+    if (!effectiveGroupId) return [];
+    return users.filter(user => user.group_id === effectiveGroupId).map(user => user.id);
+  }, [effectiveGroupId, users]);
 
   const room = useMemo(() => {
-    if (!groupId) return null;
-    const groupName = currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'گروه تیم';
-    return ensureGroupChatRoom(groupId, groupName, memberIds);
-  }, [groupId, currentUser, memberIds]);
+    if (!effectiveGroupId) return null;
+    return ensureGroupChatRoom(effectiveGroupId, effectiveGroupName, memberIds);
+  }, [effectiveGroupId, effectiveGroupName, memberIds]);
 
   const [messages, setMessages] = useState<any[]>([]);
   const [draft, setDraft] = useState('');
@@ -31,9 +61,9 @@ export default function GroupChatPanel({ currentUser, users }: GroupChatPanelPro
     return () => unsub();
   }, [room]);
 
-  const stats = room ? getGroupChatStats(groupId, users) : { totalMessages: 0, activeMembers: 0, engagementScore: 0 };
+  const stats = room ? getGroupChatStats(effectiveGroupId, users) : { totalMessages: 0, activeMembers: 0, engagementScore: 0 };
 
-  if (!currentUser || !groupId || !room) return null;
+  if (!currentUser || !effectiveGroupId || !room) return null;
 
   const sendMessage = (event: React.FormEvent) => {
     event.preventDefault();
@@ -56,13 +86,13 @@ export default function GroupChatPanel({ currentUser, users }: GroupChatPanelPro
   return (
     <div className="fixed bottom-24 left-3 sm:left-6 z-40 w-[min(92vw,360px)] overflow-hidden rounded-[22px] border border-cyan-500/30 bg-[#070d1f]/90 backdrop-blur-2xl shadow-[0_0_35px_rgba(34,211,238,0.18)]">
       <div className="flex items-center justify-between border-b border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent px-3 py-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.25)]">
             <MessageCircle size={16} />
           </span>
-          <div>
+          <div className="min-w-0">
             <div className="text-[11px] font-black text-white">چت گروهی</div>
-            <div className="text-[10px] text-slate-400">{room.name}</div>
+            <div className="truncate text-[10px] text-slate-400">{room.name}</div>
           </div>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-slate-300">
@@ -74,6 +104,22 @@ export default function GroupChatPanel({ currentUser, users }: GroupChatPanelPro
           </div>
         </div>
       </div>
+
+      {isAdminMode && adminGroupOptions.length > 0 && (
+        <div className="border-b border-slate-800 bg-slate-950/80 px-3 py-2">
+          <label className="sr-only" htmlFor="group-chat-select">انتخاب گروه</label>
+          <select
+            id="group-chat-select"
+            value={selectedGroupId}
+            onChange={(event) => setSelectedGroupId(event.target.value)}
+            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-100 outline-none focus:border-cyan-500"
+          >
+            {adminGroupOptions.map(group => (
+              <option key={group.id} value={group.id}>{group.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="max-h-[260px] space-y-2 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.08),_transparent_40%)] p-3">
         {messages.length === 0 ? (

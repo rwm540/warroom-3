@@ -449,6 +449,31 @@ export default function App() {
   // Current Logged-in User (Managed in memory + Supabase backend)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
+  const clearAllAppStorage = () => {
+    try {
+      const keys = [...Object.keys(localStorage)];
+      keys.forEach((key) => localStorage.removeItem(key));
+    } catch {
+      // Ignore storage access issues in restricted contexts.
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('warroom_current_user_data');
+      if (!storedUser) return;
+      const parsed = JSON.parse(storedUser) as User | null;
+      if (parsed && parsed.id) {
+        setCurrentUser({ ...parsed, password: '' });
+        setShowAuthScreen(false);
+      } else {
+        localStorage.removeItem('warroom_current_user_data');
+      }
+    } catch {
+      localStorage.removeItem('warroom_current_user_data');
+    }
+  }, []);
+
   // Keep theme in sync with currentUser gender
   useEffect(() => {
     if (currentUser) {
@@ -615,9 +640,7 @@ export default function App() {
     setActiveTab('Home');
     setShowAuthScreen(false);
     setModalActiveCount(0);
-    localStorage.removeItem('warroom_current_user_id');
-    localStorage.removeItem('warroom_current_user_data');
-    localStorage.removeItem('warroom_active_tab');
+    clearAllAppStorage();
     triggerAlert('خروج از سامانه اتاق جنگ با موفقیت انجام شد.');
   };
 
@@ -626,6 +649,8 @@ export default function App() {
     setCurrentUser(safeUser);
     setShowAuthScreen(false);
     setMustChangePassword(false);
+    localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
+    localStorage.setItem('warroom_current_user_id', safeUser.id);
 
     if (safeUser.gender === 'دختر') {
       setCampaignTheme('girls');
@@ -637,11 +662,9 @@ export default function App() {
       setIsAdminMode(true);
       setActiveTab('Admin');
       setShowGamePortal(false);
-      localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
       triggerAlert(`خوش آمدید مدیر کل ${safeUser.first_name} ${safeUser.last_name} — وارد پنل مدیریت شدید.`);
     } else {
       setShowGamePortal(true);
-      localStorage.setItem('warroom_current_user_data', JSON.stringify(safeUser));
       triggerAlert(`خوش آمدید رزمنده ${safeUser.first_name} ${safeUser.last_name} — لطفا سامانه بازی را انتخاب کنید.`);
     }
   };
@@ -927,8 +950,8 @@ export default function App() {
               campaignTheme={campaignTheme}
             />
 
-            {currentUser && currentUser.group_id && (
-              <GroupChatPanel currentUser={currentUser} users={users} />
+            {currentUser && (currentUser.group_id || currentUser.role === 'admin' || isAdminMode) && (
+              <GroupChatPanel currentUser={currentUser} users={users} groups={groups} isAdminMode={isAdminMode} />
             )}
 
             {/* Main Content Body */}
