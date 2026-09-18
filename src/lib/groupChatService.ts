@@ -95,7 +95,7 @@ function hydrateChatStoreFromSupabase() {
 
   void Promise.all([
     supabase.from('warroom_group_chat_rooms').select('id, data').order('updated_at', { ascending: false }),
-    supabase.from('warroom_group_chat_messages').select('id, data').order('created_at', { ascending: true }),
+    supabase.from('warroom_group_chat_messages').select('id, data'),
   ])
     .then(([roomsRes, messagesRes]) => {
       const rooms = (roomsRes.data || [])
@@ -184,7 +184,7 @@ export function ensureGroupChatRoom(groupId: string, groupName: string, memberId
         data: room,
         updated_at: new Date().toISOString(),
       })
-      .catch(() => undefined);
+      .then(undefined, () => undefined);
   }
 
   void logAudit({
@@ -221,10 +221,13 @@ export function listAllGroupChats(): Array<{ room: GroupChatRoom; messages: Grou
     .sort((a, b) => new Date(b.room.updated_at).getTime() - new Date(a.room.updated_at).getTime());
 }
 
-export function deleteGroupChatMessage(roomId: string, messageId: string): boolean {
+export function deleteGroupChatMessage(roomId: string, messageId: string, authorId?: string): boolean {
   const store = readStore();
   const key = Object.keys(store).find(item => store[item]?.room?.id === roomId);
   if (!key) return false;
+
+  const targetMessage = (store[key]?.messages ?? []).find(message => message.id === messageId);
+  if (!targetMessage || (authorId && targetMessage.user_id !== authorId)) return false;
 
   const nextMessages = (store[key]?.messages ?? []).filter(message => message.id !== messageId);
   store[key] = {
@@ -235,7 +238,7 @@ export function deleteGroupChatMessage(roomId: string, messageId: string): boole
   writeStore(store);
 
   if (isSupabaseEnabled && supabase) {
-    void supabase.from('warroom_group_chat_messages').delete().eq('id', messageId).catch(() => undefined);
+    void supabase.from('warroom_group_chat_messages').delete().eq('id', messageId).then(undefined, () => undefined);
   }
 
   void logAudit({
@@ -245,6 +248,47 @@ export function deleteGroupChatMessage(roomId: string, messageId: string): boole
     metadata: { roomId, messageId },
   });
 
+  return true;
+}
+
+export function editGroupChatMessage(roomId: string, messageId: string, authorId: string, text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  const store = readStore();
+  const key = Object.keys(store).find(item => store[item]?.room?.id === roomId);
+  if (!key) return false;
+
+  const targetMessage = (store[key]?.messages ?? []).find(message => message.id === messageId);
+  if (!targetMessage || targetMessage.user_id !== authorId) return false;
+
+  const updatedMessage: GroupChatMessage = {
+    ...targetMessage,
+    text: trimmed,
+    updated_at: new Date().toISOString(),
+  };
+  store[key] = {
+    ...store[key],
+    room: { ...store[key].room, updated_at: new Date().toISOString() },
+    messages: (store[key].messages ?? []).map(message => message.id === messageId ? updatedMessage : message),
+  };
+  writeStore(store);
+
+  if (isSupabaseEnabled && supabase) {
+    void supabase.from('warroom_group_chat_messages').upsert({
+      id: messageId,
+      data: updatedMessage,
+      updated_at: new Date().toISOString(),
+    }).then(undefined, () => undefined);
+  }
+
+  void logAudit({
+    event: 'chat.message_edited',
+    level: 'info',
+    source: 'client',
+    actorId: authorId,
+    metadata: { roomId, messageId, textLength: trimmed.length },
+  });
   return true;
 }
 
@@ -289,7 +333,7 @@ export function appendGroupChatMessage(payload: {
         data: newMessage,
         updated_at: new Date().toISOString(),
       })
-      .catch(() => undefined);
+      .then(undefined, () => undefined);
 
     void supabase
       .from('warroom_group_chat_rooms')
@@ -298,7 +342,7 @@ export function appendGroupChatMessage(payload: {
         data: { ...room, updated_at: new Date().toISOString() },
         updated_at: new Date().toISOString(),
       })
-      .catch(() => undefined);
+      .then(undefined, () => undefined);
   }
 
   void logAudit({
@@ -393,7 +437,7 @@ export function subscribeGroupChat(roomId: string, onChange: (messages: GroupCha
     };
 
     handleUpdate();
-    void supabase.from('warroom_group_chat_messages').select('id, data').eq('data->>room_id', roomId).order('created_at', { ascending: true })
+    void supabase.from('warroom_group_chat_messages').select('id, data').eq('data->>room_id', roomId)
       .then(({ data }) => {
         const nextMessages = ((data || []) as any[]) .map(normalizeMessageRecord).filter((message): message is GroupChatMessage => Boolean(message));
         const store = readStore();
@@ -403,7 +447,7 @@ export function subscribeGroupChat(roomId: string, onChange: (messages: GroupCha
         ensureRoomInLocalStore(room, nextMessages);
         onChange(nextMessages.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
       })
-      .catch(() => handleUpdate());
+      .then(undefined, () => handleUpdate());
 
     return unsubscribe;
   }

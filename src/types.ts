@@ -86,6 +86,21 @@ export interface Group {
   status?: 'pending' | 'active' | 'complete';
 }
 
+export type GroupJoinRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface GroupJoinRequest {
+  id: string;
+  source_group_id?: string;
+  target_group_id: string;
+  requester_id: string;
+  requester_name: string;
+  target_group_name: string;
+  status: GroupJoinRequestStatus;
+  created_at: string;
+  resolved_at?: string;
+  resolved_by?: string;
+}
+
 export interface GroupChatRoom {
   id: string;
   group_id: string;
@@ -105,6 +120,7 @@ export interface GroupChatMessage {
   avatar_url?: string;
   text: string;
   created_at: string;
+  updated_at?: string;
   is_system?: boolean;
 }
 

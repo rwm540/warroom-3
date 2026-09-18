@@ -22,7 +22,8 @@ import {
   DailyChallengeConfig,
   PrizeItem,
   PaymentSettings,
-  PaymentTransaction
+  PaymentTransaction,
+  GroupJoinRequest
 } from './types';
 import { initialJourneyStages, initialDailyChallengeConfig } from './data/initialStages';
 
@@ -188,6 +189,12 @@ export default function App() {
     storageKey: 'warroom_groups',
     table: 'warroom_groups',
     initial: initialGroups
+  });
+
+  const [groupJoinRequests, setGroupJoinRequests] = useSyncedCollection<GroupJoinRequest>({
+    storageKey: 'warroom_group_join_requests',
+    table: 'warroom_group_join_requests',
+    initial: []
   });
 
   const [missions, setMissions] = useSyncedCollection<Mission>({
@@ -1058,8 +1065,8 @@ export default function App() {
               campaignTheme={campaignTheme}
             />
 
-            {currentUser && (currentUser.group_id || currentUser.role === 'admin' || isAdminMode) && (
-              <GroupChatPanel currentUser={currentUser} users={users} groups={groups} isAdminMode={isAdminMode} />
+            {currentUser && currentUser.group_id && currentUser.role !== 'admin' && !isAdminMode && (
+              <GroupChatPanel currentUser={currentUser} users={users} groups={groups} />
             )}
 
             {/* Main Content Body */}
@@ -1272,6 +1279,8 @@ export default function App() {
                 setUsers={setUsers}
                 groups={groups}
                 setGroups={setGroups}
+                groupJoinRequests={groupJoinRequests}
+                setGroupJoinRequests={setGroupJoinRequests}
                 onClose={() => setShowSquadModal(false)}
                 triggerAlert={triggerAlert}
               />

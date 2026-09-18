@@ -85,10 +85,10 @@ import {
 } from '../lib/backendApi';
 import { PasswordResetRequest } from '../types';
 import { showInternalToast, confirmInternal } from '../lib/appDialog';
-import { listAllGroupChats, deleteGroupChatMessage } from '../lib/groupChatService';
 import AdminSoundtrackManager from './AdminSoundtrackManager';
 import PasswordResetsAdmin from './PasswordResetsAdmin';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
+import AdminChatRoomsPanel from './AdminChatRoomsPanel';
 import DashboardView from './DashboardView';
 import ElementorVisualEditorModal from './ElementorVisualEditorModal';
 import PersianDatePicker from './PersianDatePicker';
@@ -259,12 +259,6 @@ export default function AdminPanel({
 
   // رمز یک‌بارمصرف نمایش‌داده‌شده پس از ایجاد/بازنشانی کاربر (هرگز ذخیره نمی‌شود)
   const [oneTimeCredential, setOneTimeCredential] = useState<{ title: string; password: string } | null>(null);
-  const [chatAuditRows, setChatAuditRows] = useState<Array<{ room: any; messages: any[] }>>([]);
-
-  useEffect(() => {
-    setChatAuditRows(listAllGroupChats());
-  }, [users, groups]);
-
   // 🎁 PRIZES & AWARDS MANAGEMENT STATE
   const [showPrizeModal, setShowPrizeModal] = useState<boolean>(false);
   const [editingPrize, setEditingPrize] = useState<PrizeItem | null>(null);
@@ -1751,11 +1745,9 @@ export default function AdminPanel({
 
   // Filtered Users
   const filteredUsers = users.filter(u => {
-    const matchesTerm = !userSearchTerm || 
-      u.first_name.includes(userSearchTerm) || 
-      u.last_name.includes(userSearchTerm) || 
-      u.personal_code.includes(userSearchTerm) || 
-      u.national_code.includes(userSearchTerm);
+    const searchFields = [u.first_name, u.last_name, u.personal_code, u.national_code]
+      .map(value => String(value || ''));
+    const matchesTerm = !userSearchTerm || searchFields.some(value => value.includes(userSearchTerm));
 
     const matchesProvince = userProvinceFilter === 'all' || u.province === userProvinceFilter;
     const matchesGender = userGenderFilter === 'all' || u.gender === userGenderFilter;
@@ -5064,75 +5056,11 @@ export default function AdminPanel({
 
       {/* 9. REAL-TIME PUSH NOTIFICATIONS & BROADCAST STUDIO */}
       {activeAdminTab === 'chat_control' && (
+        <AdminChatRoomsPanel currentUser={currentUser} groups={groups} users={users} />
+      )}
+
+      {activeAdminTab === 'notifications' && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-cyan-500/30 bg-[#09121f] p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-cyan-300">مدیریت و بازبینی تمامی چت‌های گروهی</h3>
-                <p className="text-[11px] text-slate-400">ادمین می‌تواند همه پیام‌ها را ببیند، پیام‌های خاص را حذف کند و وضعیت تعامل گروه‌ها را بررسی کند.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setChatAuditRows(listAllGroupChats())}
-                className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold text-cyan-200"
-              >
-                تازه‌سازی لیست چت
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {chatAuditRows.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-700 p-4 text-center text-[11px] text-slate-400">
-                  هنوز هیچ اتاق چت گروهی ایجاد نشده است.
-                </div>
-              ) : (
-                chatAuditRows.map((entry) => (
-                  <div key={entry.room.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-black text-white">{entry.room.name}</div>
-                        <div className="text-[10px] text-slate-400">گروه: {entry.room.group_id} · اعضا: {entry.room.member_ids.length}</div>
-                      </div>
-                      <div className="text-[10px] text-amber-300">{entry.messages.length} پیام</div>
-                    </div>
-                    <div className="space-y-2">
-                      {entry.messages.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-slate-700 p-2 text-[11px] text-slate-500">پیام جدیدی ثبت نشده است.</div>
-                      ) : (
-                        entry.messages.slice(-5).map((msg) => (
-                          <div key={msg.id} className="rounded-xl border border-slate-800 bg-slate-900 p-2.5">
-                            <div className="mb-1 flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-cyan-300">{msg.user_name}</span>
-                              <span className="text-[9px] text-slate-500">{new Date(msg.created_at).toLocaleString('fa-IR')}</span>
-                            </div>
-                            <p className="text-[11px] leading-6 text-slate-200">{msg.text}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const roomId = entry.room.id;
-                          const lastMessageId = entry.messages.at(-1)?.id;
-                          if (!lastMessageId) return;
-                          deleteGroupChatMessage(roomId, lastMessageId);
-                          setChatAuditRows(listAllGroupChats());
-                          triggerAlert('آخرین پیام این گروه توسط ادمین حذف شد.');
-                        }}
-                        className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] font-bold text-rose-200"
-                      >
-                        حذف آخرین پیام
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          
           {/* Studio Header Banner */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-950/70 via-slate-900 to-amber-950/60 border border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">

@@ -13,7 +13,7 @@ import {
   IdCard,
   Calendar
 } from 'lucide-react';
-import { User, Group } from '../types';
+import { User, Group, GroupJoinRequest } from '../types';
 import { confirmInternal } from '../lib/appDialog';
 import { validateNationalCode, validatePhoneNumber, validateJalaliDate, generatePersonalCode } from '../utils/jalali';
 import { apiCheckNationalCodeExists } from '../lib/backendApi';
@@ -25,6 +25,8 @@ interface SquadManagementModalProps {
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   groups: Group[];
   setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
+  groupJoinRequests: GroupJoinRequest[];
+  setGroupJoinRequests: React.Dispatch<React.SetStateAction<GroupJoinRequest[]>>;
   onClose: () => void;
   triggerAlert: (msg: string) => void;
 }
@@ -35,12 +37,17 @@ export default function SquadManagementModal({
   setUsers,
   groups,
   setGroups,
+  groupJoinRequests,
+  setGroupJoinRequests,
   onClose,
   triggerAlert
 }: SquadManagementModalProps) {
   // Find group
   const userGroup = groups.find(g => g.id === currentUser.group_id);
   const squadMembers = users.filter(u => u.group_id === currentUser.group_id);
+  const isLeader = currentUser.role === 'leader' || userGroup?.leader_id === currentUser.id;
+  const incomingRequests = groupJoinRequests.filter(request => request.target_group_id === currentUser.group_id && request.status === 'pending');
+  const outgoingRequests = groupJoinRequests.filter(request => request.requester_id === currentUser.id && request.status === 'pending');
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('warroom_modal_active_change', { detail: { active: true } }));
@@ -63,6 +70,37 @@ export default function SquadManagementModal({
   });
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const requestToJoinGroup = (targetGroup: Group) => {
+    if (!currentUser.group_id || targetGroup.id === currentUser.group_id || outgoingRequests.some(request => request.target_group_id === targetGroup.id)) return;
+    const request: GroupJoinRequest = {
+      id: `join_${currentUser.id}_${targetGroup.id}_${Date.now()}`,
+      source_group_id: currentUser.group_id,
+      target_group_id: targetGroup.id,
+      requester_id: currentUser.id,
+      requester_name: `${currentUser.first_name} ${currentUser.last_name}`,
+      target_group_name: targetGroup.name,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    };
+    setGroupJoinRequests(prev => [request, ...prev]);
+    triggerAlert(`درخواست عضویت برای «${targetGroup.name}» ارسال شد.`);
+  };
+
+  const resolveJoinRequest = (request: GroupJoinRequest, status: 'accepted' | 'rejected') => {
+    if (!isLeader || request.target_group_id !== currentUser.group_id) return;
+    setGroupJoinRequests(prev => prev.map(item => item.id === request.id ? { ...item, status, resolved_at: new Date().toISOString(), resolved_by: currentUser.id } : item));
+    if (status === 'accepted') {
+      const requester = users.find(user => user.id === request.requester_id);
+      if (requester && squadMembers.length < (userGroup?.max_members || 4)) {
+        setUsers(prev => prev.map(user => user.id === requester.id ? { ...user, group_id: currentUser.group_id } : user));
+        setGroups(prev => prev.map(group => group.id === currentUser.group_id ? { ...group, members_count: Math.min(group.max_members || 4, group.members_count + 1), member_ids: Array.from(new Set([...(group.member_ids || []), requester.id])) } : group));
+        triggerAlert(`درخواست «${request.requester_name}» پذیرفته شد و به گروه اضافه شد.`);
+      }
+    } else {
+      triggerAlert(`درخواست «${request.requester_name}» رد شد.`);
+    }
+  };
 
   // Submit Add or Edit Member
   const handleSubmitMember = async (e: React.FormEvent) => {
@@ -207,6 +245,19 @@ export default function SquadManagementModal({
 
         {/* Squad Info Banner */}
         <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs font-bold">
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2">
+                      <h4 className="text-xs font-black text-cyan-300">پیوستن به گروه دیگر</h4>
+                      <p className="text-[10px] leading-5 text-slate-400">بدون پذیرش سرگروه، گروه و روم شما تغییر نمی‌کند.</p>
+                      <div className="max-h-28 space-y-1 overflow-y-auto">
+                        {groups.filter(group => group.id !== currentUser.group_id).map(group => (
+                          <button key={group.id} type="button" onClick={() => requestToJoinGroup(group)} disabled={outgoingRequests.some(request => request.target_group_id === group.id)} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-right text-[10px] text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">{group.name} <span className="text-slate-500">({group.members_count}/{group.max_members || 4})</span></button>
+                        ))}
+                      </div>
+                    </div>
+                    {isLeader && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2"><h4 className="text-xs font-black text-amber-300">درخواست‌های عضویت</h4>{incomingRequests.length === 0 ? <p className="text-[10px] text-slate-500">درخواست جدیدی نیست.</p> : incomingRequests.map(request => <div key={request.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-900 p-2"><span className="text-[10px] text-slate-200">{request.requester_name}</span><span className="flex gap-1"><button type="button" onClick={() => resolveJoinRequest(request, 'accepted')} className="rounded bg-emerald-600 p-1 text-white"><Check size={12} /></button><button type="button" onClick={() => resolveJoinRequest(request, 'rejected')} className="rounded bg-rose-700 p-1 text-white"><X size={12} /></button></span></div>)}</div>}
+                  </div>
           <span className="text-slate-300">
             تعداد اعضای فعلی: <span className="text-red-400 font-mono text-sm">{squadMembers.length}</span> از حداکثر ۶ نفر
           </span>
