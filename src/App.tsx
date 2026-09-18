@@ -488,6 +488,7 @@ export default function App() {
     setShowGamePortal(false);
     setIsAdminMode(tab === 'Admin');
     setActiveTab(tab);
+    setModalActiveCount(0);
   };
   const [showSquadModal, setShowSquadModal] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
@@ -575,6 +576,7 @@ export default function App() {
     setIsAdminMode(false);
     setActiveTab('Home');
     setShowAuthScreen(false);
+    setModalActiveCount(0);
     localStorage.removeItem('warroom_current_user_id');
     localStorage.removeItem('warroom_current_user_data');
     localStorage.removeItem('warroom_active_tab');
@@ -827,14 +829,14 @@ export default function App() {
             />
           </motion.div>
         ) : (activeTab === 'Support' || activeTab === 'Contact') ? (
-          /* Standalone Animated Contact & Ticket Page (Public & Independent) */
+          /* Standalone Animated Contact & Ticket Page (Public & Independent - 100% Solid) */
           <motion.div
             key="contactPage"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+            className="min-h-screen bg-[#090e1f] text-slate-100 py-6 px-3 sm:px-6 dir-rtl relative z-10"
           >
             <ContactView 
               onNavigate={(tab) => handleTabChange(tab)}
@@ -846,14 +848,14 @@ export default function App() {
             />
           </motion.div>
         ) : activeTab === 'About' ? (
-          /* Standalone Animated About Us Page */
+          /* Standalone Animated About Us Page (100% Solid) */
           <motion.div
             key="aboutPage"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+            className="min-h-screen bg-[#090e1f] text-slate-100 py-6 px-3 sm:px-6 dir-rtl relative z-10"
           >
             <AboutView 
               onNavigate={(tab) => handleTabChange(tab)}
@@ -862,14 +864,14 @@ export default function App() {
             />
           </motion.div>
         ) : activeTab === 'Rules' ? (
-          /* Standalone Animated Rules Page */
+          /* Standalone Animated Rules Page (100% Solid) */
           <motion.div
             key="rulesPage"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="min-h-screen bg-[#05091a] text-slate-100 py-6 px-3 sm:px-6 dir-rtl"
+            className="min-h-screen bg-[#090e1f] text-slate-100 py-6 px-3 sm:px-6 dir-rtl relative z-10"
           >
             <RulesView 
               onNavigate={(tab) => handleTabChange(tab)}
@@ -1141,18 +1143,18 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Global Floating Android Mobile Bottom Navigation (هنگام باز شدن هر صفحه یا مدال بسته می‌شود و پس از بستن، مجدداً باز می‌شود) */}
+      {/* Global Floating Android Mobile Bottom Navigation (فقط در پنل کاربری و پنل ادمین — در صفحه اول سایت و صفحات عمومی نمایش داده نمی‌شود) */}
       <AnimatePresence>
-        {!(
-          isModalActive || 
-          showNotificationCenter || 
-          showGamePortal || 
-          showSquadModal || 
-          showProfileModal || 
-          showOnboardingTutorial || 
-          showAuthScreen || 
-          isAdminMode ||
-          ['Support', 'About', 'Contact', 'Rules', 'Admin'].includes(activeTab)
+        {Boolean(
+          currentUser && 
+          !showAuthScreen &&
+          !isModalActive && 
+          !showNotificationCenter && 
+          !showGamePortal && 
+          !showSquadModal && 
+          !showProfileModal && 
+          !showOnboardingTutorial &&
+          (isAdminMode || activeTab === 'Admin' || !['Home', 'Support', 'About', 'Contact', 'Rules'].includes(activeTab))
         ) && (
           <motion.div
             key="android-bottom-nav-container"

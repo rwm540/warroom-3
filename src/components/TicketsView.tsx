@@ -270,12 +270,12 @@ export default function TicketsView({
   return (
     <div className="space-y-4 dir-rtl text-right">
       
-      {/* 1. Header Bar with Statistics & Create Button */}
-      <div className="cyber-card-3d p-4 sm:p-5 rounded-2xl border border-cyan-500/30 space-y-4 shadow-xl">
+      {/* 1. Header Bar with Statistics & Create Button - 100% Solid Opaque */}
+      <div className="bg-[#0f172a] p-4 sm:p-5 rounded-2xl border border-slate-700 space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 via-blue-600/30 to-purple-600/20 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-              <Headphones size={22} className="animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
+              <Headphones size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -284,7 +284,7 @@ export default function TicketsView({
                   پاسخگویی ریل‌تایم
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-200 font-semibold mt-0.5">
                 ارسال مشکلات فنی، سوالات داوری مأموریت‌ها، درخواست‌های جوخه و پیگیری وضعیت تا دریافت پاسخ نهایی
               </p>
             </div>
@@ -705,7 +705,7 @@ export default function TicketsView({
       {/* 3. Modal: New Ticket Submission Form */}
       <AnimatePresence>
         {showNewModal && (
-          <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 pt-3 sm:pt-6 pb-28 dir-rtl overflow-y-auto">
+          <div className="fixed inset-0 z-[100] bg-black/90 flex items-start justify-center p-3 pt-3 sm:pt-6 pb-28 dir-rtl overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

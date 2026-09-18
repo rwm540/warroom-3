@@ -29,9 +29,9 @@ export default function BottomNavigation({
 }: BottomNavigationProps) {
   const isGirls = campaignTheme === 'girls' || currentUser?.gender === 'دختر';
 
-  // Android Mobile Navigation Tabs (Includes Home page & Admin panel for admin users)
+  // Android Mobile Navigation Tabs (ویژه پنل کاربری و پنل ستاد مدیریت)
   const items = [
-    { id: 'Home', label: 'صفحه اصلی', icon: Home, isAdmin: false },
+    { id: 'Dashboard', label: 'پیشخوان', icon: LayoutDashboard, isAdmin: false },
     { id: 'Journey', label: 'نقشه بازی', icon: Gamepad2, isAdmin: false },
     { id: 'Rewards', label: 'جوایز', icon: Gift, isAdmin: false },
     { id: 'Vitrin', label: 'ویترین', icon: Grid, isAdmin: false },
@@ -68,8 +68,12 @@ export default function BottomNavigation({
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = item.isAdmin 
-            ? Boolean(isAdminMode) 
-            : (activeTab === item.id && !isAdminMode);
+            ? Boolean(isAdminMode || activeTab === 'Admin') 
+            : item.id === 'Dashboard'
+              ? (!isAdminMode && (activeTab === 'Dashboard' || activeTab === 'Missions' || activeTab === 'Trainings' || activeTab === 'Profile'))
+              : item.id === 'Rewards'
+                ? (!isAdminMode && (activeTab === 'Rewards' || activeTab === 'Prizes' || activeTab === 'RewardsLeaderboard' || activeTab === 'Leaderboard'))
+                : (activeTab === item.id && !isAdminMode);
 
           return (
             <motion.button

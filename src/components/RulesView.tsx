@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   FileText, 
@@ -12,8 +12,9 @@ import {
   ArrowRight, 
   Home, 
   Lock,
-  Flame,
-  Award
+  Search,
+  Check,
+  HelpCircle
 } from 'lucide-react';
 
 interface RulesViewProps {
@@ -22,97 +23,99 @@ interface RulesViewProps {
 }
 
 export default function RulesView({ onNavigate }: RulesViewProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const ruleCategories = [
     {
+      id: 'reg',
       title: '۱. قوانین عمومی و شرایط ثبت‌نام',
       icon: Users,
-      color: 'text-cyan-300',
-      border: 'border-cyan-500',
-      bg: 'bg-cyan-950',
+      badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500',
       items: [
-        'کلیه شرکت‌کنندگان ملزم به ثبت اطلاعات واقعی، کدملی و مشخصات هویتی صحیح در هنگام ثبت‌نام می‌باشند.',
+        'کلیه شرکت‌کنندگان ملزم به ثبت اطلاعات واقعی، کدملی و مشخصات هویتی صحیح در هنگام عضویت می‌باشند.',
         'هر کاربر مجاز به عضویت در یک جوخه عملیاتی در طول هر دوره از مسابقات است.',
-        'مسئولیت حفظ محرمانگی نام کاربری و کلمه عبور بر عهده شخص کاربر می‌باشد.'
+        'مسئولیت حفظ محرمانگی نام کاربری، کلمه عبور و کد پرسنلی اختصاصی بر عهده خود کاربر می‌باشد.'
       ]
     },
     {
-      title: '۲. قوانین جوخه‌ها و کار تیمی',
+      id: 'squad',
+      title: '۲. ضوابط تشکیل جوخه‌ها و کار تیمی',
       icon: ShieldCheck,
-      color: 'text-amber-300',
-      border: 'border-amber-500',
-      bg: 'bg-amber-950',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-500',
       items: [
-        'تعداد اعضای هر جوخه طبق ضوابط بازی بین ۳ تا ۵ نفر تعیین می‌شود.',
-        'سرگروه جوخه مسئولیت هماهنگی، ارسال پاسخ‌های نهایی مأموریت و مکاتبات با ستاد داوری را بر عهده دارد.',
-        'خروج یا جابجایی اعضا در حین اجرای بازی تنها با تایید ستاد پشتیبانی امکان‌پذیر است.'
+        'تعداد اعضای مجاز هر جوخه طبق ضوابط بازی بین ۳ تا ۵ نفر تعیین شده است.',
+        'فرمانده (سرگروه) جوخه مسئولیت هماهنگی، ارسال پاسخ‌های نهایی مأموریت و مکاتبات رسمی با ستاد داوری را بر عهده دارد.',
+        'خروج یا جابجایی اعضا در حین اجرای بازی تنها با تایید ستاد پشتیبانی امکان‌پذیر خواهد بود.'
       ]
     },
     {
-      title: '۳. قوانین ارسال پاسخ‌ها و مهلت مأموریت‌ها',
+      id: 'submissions',
+      title: '۳. ضوابط ارسال پاسخ‌ها و مهلت زمانی مأموریت‌ها',
       icon: Clock,
-      color: 'text-emerald-300',
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-950',
+      badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500',
       items: [
-        'تمامی پاسخ‌ها و سناریوها باید پیش از اتمام تایمر معکوس هر مرحله در سامانه ثبت شوند.',
-        'پاسخ‌های ارسالی پس از اتمام زمان مهلت به عنوان تأخیری ثبت شده و شامل کسر امتیاز خواهند بود.',
-        'فرمت فایل‌های ارسالی باید مطابق دستورالعمل مشخص‌شده در مأموریت (PDF، صوت، ویدیو یا متن) باشد.'
+        'تمامی پاسخ‌ها، تحلیل‌ها و سناریوها باید پیش از اتمام تایمر معکوس هر مرحله در سامانه ثبت شوند.',
+        'پاسخ‌های ارسالی پس از پایان مهلت قانونی به عنوان پاسخ تأخیری ثبت شده و شامل کسر امتیاز خواهند بود.',
+        'فرمت فایل‌های ضمیمه باید مطابق دستورالعمل مشخص‌شده در مأموریت (PDF، صوت، تصویر یا متن) باشد.'
       ]
     },
     {
-      title: '۴. ضوابط داوری، امتیازدهی و اعتراضات',
+      id: 'judging',
+      title: '۴. آیین‌نامه داوری، نمره‌دهی و ثبت اعتراضات',
       icon: Scale,
-      color: 'text-purple-300',
-      border: 'border-purple-500',
-      bg: 'bg-purple-950',
+      badgeColor: 'bg-indigo-950 text-indigo-300 border-indigo-500',
       items: [
-        'ارزیابی و نمره‌دهی پاسخ‌ها بر اساس سنجه‌های تحلیلی، خلاقیت، استدلال منطقی و سرعت عمل انجام می‌شود.',
+        'ارزیابی و نمره‌دهی پاسخ‌ها بر اساس سنجه‌های تحلیلی، خلاقیت، استدلال منطقی و کار گروهی انجام می‌گیرد.',
         'در صورت وجود هرگونه ابهام، کاربران می‌توانند ظرف مدت ۲۴ ساعت پس از اعلام نتایج از طریق تیکت پشتیبانی اعتراض خود را ثبت نمایند.',
-        'آرای هیئت داوران ستاد پس از بازبینی نهایی قطعی و لازم‌الاجرا خواهد بود.'
+        'آرای هیئت داوران ستاد پس از بازبینی و اعلام نظر نهایی، قطعی و لازم‌الاجرا است.'
       ]
     },
     {
-      title: '۵. اصول اخلاق حرفه‌ای و امنیت اطلاعات',
+      id: 'ethics',
+      title: '۵. اصول اخلاق حرفه‌ای، صداقت و امنیت اطلاعات',
       icon: Lock,
-      color: 'text-red-300',
-      border: 'border-red-500',
-      bg: 'bg-red-950',
+      badgeColor: 'bg-rose-950 text-rose-300 border-rose-500',
       items: [
-        'هرگونه کپی‌برداری غیرمجاز یا تبادل پاسخ میان جوخه‌های مختلف منجر به کسر امتیاز یا حذف خواهد شد.',
-        'رعایت ادب و احترام به سایر رقبا و داوران در بخش پیام‌ها و تیکت‌ها الزامی است.',
+        'هرگونه کپی‌برداری غیرمجاز یا تبادل پاسخ میان جوخه‌های مختلف منجر به کسر امتیاز یا تعلیق جوخه خواهد شد.',
+        'رعایت ادب و احترام به سایر رقبا و داوران در بخش پیام‌ها، تیکت‌ها و ویترین الزامی است.',
         'استفاده از روش‌های نامتعارف و دستکاری در داده‌های سامانه به منزله تخلف انضباطی تلقی می‌گردد.'
       ]
     },
     {
+      id: 'awards',
       title: '۶. جوایز و اهدای نشان‌های افتخار',
       icon: Trophy,
-      color: 'text-yellow-300',
-      border: 'border-yellow-500',
-      bg: 'bg-yellow-950',
+      badgeColor: 'bg-yellow-950 text-yellow-300 border-yellow-500',
       items: [
-        'نشان‌های افتخار و مدال‌های مأموریت به برترین جوخه‌ها و رزمندگان اهدا خواهد شد.',
-        'جوایز نقدی و لوح‌های تقدیر در مراسم اختتامیه رسمی ستاد تقدیم نفرات برتر می‌گردد.'
+        'نشان‌های افتخار و مدال‌های مأموریت به برترین جوخه‌ها و رزمندگان فعال تعلق می‌گیرد.',
+        'جوایز نقدی، هدایا و لوح‌های تقدیر در مراسم اختتامیه رسمی ستاد به نفرات برتر اهدا خواهد شد.'
       ]
     }
   ];
 
+  const filteredCategories = ruleCategories.filter(cat => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return cat.title.toLowerCase().includes(q) || cat.items.some(it => it.toLowerCase().includes(q));
+  });
+
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="space-y-8 dir-rtl pb-16 max-w-6xl mx-auto px-2 md:px-4 text-slate-100"
+      exit={{ opacity: 0, y: -15 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="space-y-6 dir-rtl pb-16 max-w-6xl mx-auto px-3 sm:px-6 text-slate-100"
     >
-      {/* Top Header Navigation Bar with Clear Back Button - SOLID BLACK OPAQUE */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#080d1a] border-2 border-emerald-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-emerald-950 border border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-            <FileText size={24} />
+      {/* 1. Header Bar with Clear Back Button - 100% Solid Opaque */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0f172a] border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-xl">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500 text-emerald-300 shrink-0">
+            <FileText size={26} />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-black text-white">قوانین و مقررات رسمی سامانه</h1>
-            <p className="text-xs text-emerald-200 font-bold mt-0.5">ضوابط برگزاری رویدادها، داوری مأموریت‌ها و آیین‌نامه انضباطی اتاق جنگ</p>
+            <h1 className="text-xl sm:text-2xl font-black text-white">قوانین و مقررات رسمی سامانه</h1>
+            <p className="text-sm font-bold text-emerald-200 mt-1">ضوابط برگزاری مسابقات، داوری مأموریت‌ها و آیین‌نامه انضباطی اتاق جنگ</p>
           </div>
         </div>
 
@@ -121,48 +124,64 @@ export default function RulesView({ onNavigate }: RulesViewProps) {
           <button
             type="button"
             onClick={() => onNavigate('Home')}
-            className="self-stretch sm:self-auto px-5 py-2.5 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] text-emerald-300 border border-emerald-500 font-bold text-xs shadow-md transition flex items-center justify-center gap-2 group cursor-pointer"
+            className="self-stretch sm:self-auto px-5 py-3 rounded-xl bg-[#1e293b] hover:bg-[#334155] text-emerald-300 border border-emerald-500/80 font-black text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2.5 cursor-pointer active:scale-95"
           >
-            <Home size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-            <span className="text-white font-black">بازگشت به صفحه اصلی</span>
-            <ArrowRight size={14} className="text-emerald-400 rotate-180" />
+            <Home size={18} className="text-emerald-400" />
+            <span className="text-white font-extrabold">بازگشت به صفحه اصلی</span>
+            <ArrowRight size={16} className="text-emerald-400 rotate-180" />
           </button>
         )}
       </div>
 
-      {/* Rules Notice Banner - SOLID OPAQUE */}
-      <div className="bg-[#080d1a] border-2 border-cyan-500 rounded-3xl p-6 md:p-8 space-y-3 shadow-2xl relative overflow-hidden">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-cyan-950 border border-cyan-400 text-cyan-300">
-            <ShieldCheck size={20} />
+      {/* 2. Rules Notice Banner - 100% Solid Opaque */}
+      <div className="bg-[#0f172a] border border-emerald-500/50 rounded-3xl p-6 sm:p-8 space-y-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300">
+            <ShieldCheck size={22} />
           </div>
-          <h2 className="text-base sm:text-lg font-black text-white">منشور اخلاقی و انضباطی مسابقات</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white">منشور اخلاقی و انضباطی شرکت‌کنندگان</h2>
         </div>
-        <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-bold">
-          تمامی شرکت‌کنندگان، مربیان و سرگروه‌ها با عضویت و حضور در سامانه متعهد به رعایت کامل مفاد این آیین‌نامه می‌باشند. هدف ما ایجاد بستری عادلانه، پویا، آموزشی و شفاف برای شکوفایی خلاقیت‌ها و ارتقای مهارت‌های استراتژیک نوجوانان و جوانان عزیز کشورمان است.
+        <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-semibold">
+          تمامی شرکت‌کنندگان، مربیان و سرگروه‌ها با عضویت و حضور در سامانه متعهد به رعایت کامل مفاد این آیین‌نامه می‌باشند. هدف ما ایجاد بستری عادلانه، شفاف، پویا و سازنده برای شکوفایی استعدادها و تقویت تفکر استراتژیک است.
         </p>
+
+        {/* Search inside rules */}
+        <div className="pt-2">
+          <div className="relative max-w-md">
+            <Search size={18} className="absolute right-3.5 top-3.5 text-slate-400" />
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="جستجو در متن قوانین (مثال: داوری، جوخه، امتیاز، مهلت)..."
+              className="w-full bg-[#1e293b] border-2 border-slate-600 focus:border-emerald-400 rounded-xl pr-10 pl-4 py-2.5 text-sm text-white font-bold placeholder-slate-400 outline-none transition"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Categorized Rules Grid */}
+      {/* 3. Categorized Rules Grid - 100% Solid Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {ruleCategories.map((cat, idx) => {
+        {filteredCategories.map((cat) => {
           const Icon = cat.icon;
           return (
             <div 
-              key={idx}
-              className={`bg-[#080d1a] border-2 ${cat.border} rounded-3xl p-6 space-y-4 shadow-2xl transition`}
+              key={cat.id}
+              className="bg-[#0f172a] border border-slate-700 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xl hover:border-slate-600 transition"
             >
-              <div className="flex items-center gap-3 border-b border-slate-700 pb-3">
-                <div className={`p-3 rounded-2xl ${cat.bg} border ${cat.border} ${cat.color}`}>
+              <div className="flex items-center gap-3.5 border-b border-slate-700 pb-3.5">
+                <div className={`p-3 rounded-2xl ${cat.badgeColor} border shrink-0`}>
                   <Icon size={22} />
                 </div>
-                <h3 className="text-sm sm:text-base font-black text-white">{cat.title}</h3>
+                <h3 className="text-base sm:text-lg font-black text-white">{cat.title}</h3>
               </div>
 
-              <div className="space-y-2.5">
+              <div className="space-y-3 pt-1">
                 {cat.items.map((item, itemIdx) => (
-                  <div key={itemIdx} className="flex items-start gap-2.5 text-xs text-slate-100 font-bold leading-relaxed">
-                    <CheckCircle2 size={16} className={`${cat.color} shrink-0 mt-0.5`} />
+                  <div key={itemIdx} className="flex items-start gap-3 text-sm text-slate-100 font-semibold leading-relaxed">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Check size={12} className="font-black" />
+                    </div>
                     <span>{item}</span>
                   </div>
                 ))}
@@ -172,11 +191,22 @@ export default function RulesView({ onNavigate }: RulesViewProps) {
         })}
       </div>
 
-      {/* Bottom Action Card - SOLID BLACK */}
-      <div className="bg-[#080d1a] border-2 border-slate-700 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xl">
-        <div className="space-y-1 text-center sm:text-right">
-          <h3 className="text-sm font-black text-white">سوالی درباره قوانین و ضوابط دارید؟</h3>
-          <p className="text-xs text-slate-200 font-bold">می‌توانید با بخش پشتیبانی ستاد تماس حاصل فرمایید یا تیکت ارسال کنید.</p>
+      {filteredCategories.length === 0 && (
+        <div className="p-10 text-center rounded-2xl bg-[#0f172a] border border-slate-700 text-slate-300 font-bold text-sm">
+          هیچ قانونی متناسب با عبارت جستجوی «{searchQuery}» یافت نشد.
+        </div>
+      )}
+
+      {/* 4. Bottom Action Card - 100% Solid Opaque */}
+      <div className="bg-[#0f172a] border border-slate-700 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-5 shadow-xl">
+        <div className="space-y-1.5 text-center sm:text-right">
+          <h3 className="text-base sm:text-lg font-black text-white flex items-center justify-center sm:justify-start gap-2">
+            <HelpCircle size={20} className="text-amber-400" />
+            <span>سوالی درباره قوانین، آیین‌نامه یا نحوه امتیازدهی دارید؟</span>
+          </h3>
+          <p className="text-sm text-slate-200 font-bold">
+            می‌توانید با بخش پشتیبانی ستاد مرکزی تماس حاصل فرمایید یا از طریق سامانه تیکت ارسال کنید.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -184,19 +214,19 @@ export default function RulesView({ onNavigate }: RulesViewProps) {
             <button
               type="button"
               onClick={() => onNavigate('Support')}
-              className="px-5 py-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+              className="px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
             >
-              <span>ارسال تیکت به ستاد</span>
-              <ArrowRight size={14} className="rotate-180" />
+              <span>ارسال تیکت به ستاد پشتیبانی</span>
+              <ArrowRight size={16} className="rotate-180" />
             </button>
           )}
           {onNavigate && (
             <button
               type="button"
               onClick={() => onNavigate('Home')}
-              className="px-5 py-2.5 rounded-xl bg-[#000000] hover:bg-slate-900 text-white border-2 border-slate-700 font-bold text-xs transition flex items-center gap-2 cursor-pointer"
+              className="px-5 py-3 rounded-xl bg-[#1e293b] hover:bg-[#334155] text-white border border-slate-600 font-bold text-xs sm:text-sm transition flex items-center gap-2 cursor-pointer active:scale-95"
             >
-              <Home size={14} className="text-cyan-400" />
+              <Home size={16} className="text-cyan-400" />
               <span>صفحه اصلی</span>
             </button>
           )}
