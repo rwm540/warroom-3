@@ -112,7 +112,6 @@ export default function Navbar({
 
   // Full Desktop Navigation items (Web desktop/laptop) - Dashboard is exclusive to Admin
   const desktopNavItems: { id: string; label: string; icon: any; badge?: string }[] = [
-    { id: 'Home', label: 'صفحه اصلی سایت', icon: Home },
     { id: 'Journey', label: 'نقشه مراحل بازی', icon: Gamepad2 },
     { id: 'Rewards', label: 'جوایز و امتیازات', icon: Gift },
     { id: 'Vitrin', label: 'ویترین و آثار', icon: Grid },
@@ -146,12 +145,6 @@ export default function Navbar({
       }
     ] : []),
     { 
-      id: 'Home', 
-      label: 'صفحه اصلی و معرفی رویداد', 
-      desc: 'مشاهده پوسترها، تیزرها و بخش عمومی سایت',
-      icon: Home 
-    },
-    { 
       id: 'Support', 
       label: 'پشتیبانی و تیکت‌های پاسخ‌گویی', 
       desc: 'ارتباط مستقیم با مرکز پشتیبانی فنی و داوری',
@@ -170,11 +163,9 @@ export default function Navbar({
         {/* Top Utility Bar */}
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center justify-between text-xs">
           
-          {/* Brand Logo & Title (Clickable to return Home) */}
+          {/* Brand Logo & Title */}
           <div 
-            onClick={() => handleSelectTab('Home', false)}
-            className="flex items-center gap-2.5 sm:gap-3 shrink-0 cursor-pointer group select-none transition-transform hover:scale-[1.02]"
-            title="بازگشت به صفحه اصلی سایت"
+            className="flex items-center gap-2.5 sm:gap-3 shrink-0 group select-none transition-transform hover:scale-[1.02]"
           >
             <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl p-[1.5px] transition-shadow ${
               isGirls
