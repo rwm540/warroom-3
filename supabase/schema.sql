@@ -42,6 +42,27 @@ create table if not exists public.warroom_groups (
   updated_at timestamptz not null default now()
 );
 
+-- اتاق‌های چت گروهی
+create table if not exists public.warroom_group_chat_rooms (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- پیام‌های چت گروهی
+create table if not exists public.warroom_group_chat_messages (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- نشست ثبت‌نام تیم و اعتبارنامه‌های مشترک
+create table if not exists public.warroom_team_registrations (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- مأموریت‌ها
 create table if not exists public.warroom_missions (
   id         text primary key,
@@ -232,7 +253,8 @@ declare
   t text;
 begin
   foreach t in array array[
-    'warroom_users','warroom_groups','warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
+    'warroom_users','warroom_groups','warroom_group_chat_rooms','warroom_group_chat_messages','warroom_team_registrations',
+    'warroom_stages','warroom_prizes','warroom_missions','warroom_submissions',
     'warroom_trainings','warroom_medals','warroom_user_medals',
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',

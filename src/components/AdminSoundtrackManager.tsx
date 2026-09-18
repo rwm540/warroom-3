@@ -131,12 +131,16 @@ export default function AdminSoundtrackManager({ triggerAlert }: AdminSoundtrack
   };
 
   const handleClearAllTracks = () => {
-    if (window.confirm('آیا از حذف تمام قطعات موسیقی اطمینان دارید؟ با این کار هیچ آهنگی پخش نخواهد شد و آیکون کناری صفحه نیز محو می‌شود.')) {
-      setPlaylist([]);
-      battleMusicSynth.setPlaylist([]);
-      syncSoundtracksNow([]);
-      triggerAlert('تمامی قطعات موسیقی با موفقیت پاک شدند و سیستم صوتی در حالت خاموش قرار گرفت.');
-    }
+    confirmInternal('آیا از حذف تمام قطعات موسیقی اطمینان دارید؟ با این کار هیچ آهنگی پخش نخواهد شد و آیکون کناری صفحه نیز محو می‌شود.', {
+      title: 'تأیید حذف لیست موسیقی',
+      confirmText: 'حذف همه قطعات',
+      onConfirm: () => {
+        setPlaylist([]);
+        battleMusicSynth.setPlaylist([]);
+        syncSoundtracksNow([]);
+        triggerAlert('تمامی قطعات موسیقی با موفقیت پاک شدند و سیستم صوتی در حالت خاموش قرار گرفت.');
+      }
+    });
   };
 
   const handleMoveOrder = (index: number, direction: 'up' | 'down') => {

@@ -14,6 +14,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { User, Group } from '../types';
+import { confirmInternal } from '../lib/appDialog';
 import { validateNationalCode, validatePhoneNumber, validateJalaliDate, generatePersonalCode } from '../utils/jalali';
 import { apiCheckNationalCodeExists } from '../lib/backendApi';
 import PersianDatePicker from './PersianDatePicker';
@@ -159,15 +160,18 @@ export default function SquadManagementModal({
       return;
     }
 
-    if (confirm(`آیا از حذف رزمنده "${member.first_name} ${member.last_name}" از جوخه اطمینان دارید؟`)) {
-      setUsers(prev => prev.filter(u => u.id !== member.id));
-      if (userGroup) {
-        setGroups(prev => prev.map(g => 
-          g.id === userGroup.id ? { ...g, members_count: Math.max(1, g.members_count - 1) } : g
-        ));
+    confirmInternal(`آیا از حذف رزمنده "${member.first_name} ${member.last_name}" از جوخه اطمینان دارید؟`, {
+      title: 'حذف عضو از جوخه',
+      onConfirm: () => {
+        setUsers(prev => prev.filter(u => u.id !== member.id));
+        if (userGroup) {
+          setGroups(prev => prev.map(g => 
+            g.id === userGroup.id ? { ...g, members_count: Math.max(1, g.members_count - 1) } : g
+          ));
+        }
+        triggerAlert(`رزمنده "${member.first_name} ${member.last_name}" از جوخه حذف شد.`);
       }
-      triggerAlert(`رزمنده "${member.first_name} ${member.last_name}" از جوخه حذف شد.`);
-    }
+    });
   };
 
   // Start edit member

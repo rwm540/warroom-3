@@ -83,6 +83,7 @@ import {
   adminResetUserPassword,
 } from '../lib/backendApi';
 import { PasswordResetRequest } from '../types';
+import { showInternalToast, confirmInternal } from '../lib/appDialog';
 import AdminSoundtrackManager from './AdminSoundtrackManager';
 import PasswordResetsAdmin from './PasswordResetsAdmin';
 import DashboardView from './DashboardView';
@@ -247,6 +248,11 @@ export default function AdminPanel({
 
   // رمز یک‌بارمصرف نمایش‌داده‌شده پس از ایجاد/بازنشانی کاربر (هرگز ذخیره نمی‌شود)
   const [oneTimeCredential, setOneTimeCredential] = useState<{ title: string; password: string } | null>(null);
+  const [chatAuditRows, setChatAuditRows] = useState<Array<{ room: any; messages: any[] }>>([]);
+
+  useEffect(() => {
+    setChatAuditRows(listAllGroupChats());
+  }, [users, groups]);
 
   // 🎁 PRIZES & AWARDS MANAGEMENT STATE
   const [showPrizeModal, setShowPrizeModal] = useState<boolean>(false);
@@ -333,18 +339,24 @@ export default function AdminPanel({
 
   const handleDeletePrize = (id: string, title: string) => {
     if (!setPrizes) return;
-    if (window.confirm(`آیا از حذف جایزه «${title}» اطمینان دارید؟`)) {
-      setPrizes(prev => prev.filter(p => p.id !== id));
-      triggerAlert(`جایزه «${title}» حذف شد.`);
-    }
+    confirmInternal(`آیا از حذف جایزه «${title}» اطمینان دارید؟`, {
+      title: 'حذف جایزه',
+      onConfirm: () => {
+        setPrizes(prev => prev.filter(p => p.id !== id));
+        triggerAlert(`جایزه «${title}» حذف شد.`);
+      }
+    });
   };
 
   const handleClearAllPrizes = () => {
     if (!setPrizes) return;
-    if (window.confirm('آیا از حذف تمامی جوایز اطمینان دارید؟ با این کار ویترین جوایز کاملاً خالی خواهد شد.')) {
-      setPrizes([]);
-      triggerAlert('تمامی جوایز با موفقیت حذف شدند.');
-    }
+    confirmInternal('آیا از حذف تمامی جوایز اطمینان دارید؟ با این کار ویترین جوایز کاملاً خالی خواهد شد.', {
+      title: 'پاک‌سازی تمامی جوایز',
+      onConfirm: () => {
+        setPrizes([]);
+        triggerAlert('تمامی جوایز با موفقیت حذف شدند.');
+      }
+    });
   };
   const portals = gamePortals;
   const setPortals = setGamePortals;
@@ -443,11 +455,15 @@ export default function AdminPanel({
   };
 
   const handleDeletePortal = (id: string, title: string) => {
-    if (window.confirm(`آیا از حذف درگاه «${title}» اطمینان دارید؟`)) {
-      const updatedList = portals.filter(p => p.id !== id);
-      setPortals(updatedList);
-      triggerAlert(`درگاه «${title}» حذف شد.`);
-    }
+    confirmInternal(`آیا از حذف درگاه «${title}» اطمینان دارید؟`, {
+      title: 'تأیید حذف درگاه',
+      confirmText: 'حذف درگاه',
+      onConfirm: () => {
+        const updatedList = portals.filter(p => p.id !== id);
+        setPortals(updatedList);
+        triggerAlert(`درگاه «${title}» حذف شد.`);
+      }
+    });
   };
 
   const handleTogglePortalStatus = (id: string) => {
@@ -630,10 +646,14 @@ export default function AdminPanel({
   };
 
   const handleDeleteVitrinPost = (post: VitrinPost) => {
-    if (window.confirm(`آیا از حذف اثر «${post.title}» از ویترین اطمینان دارید؟`)) {
-      setVitrinPosts(prev => prev.filter(p => p.id !== post.id));
-      triggerAlert(`اثر «${post.title}» از ویترین حذف و از Supabase حذف گردید.`);
-    }
+    confirmInternal(`آیا از حذف اثر «${post.title}» از ویترین اطمینان دارید؟`, {
+      title: 'تأیید حذف اثر ویترین',
+      confirmText: 'حذف اثر',
+      onConfirm: () => {
+        setVitrinPosts(prev => prev.filter(p => p.id !== post.id));
+        triggerAlert(`اثر «${post.title}» از ویترین حذف و از Supabase حذف گردید.`);
+      }
+    });
   };
 
   const handleMoveVitrinPost = (index: number, dir: -1 | 1) => {
@@ -783,12 +803,16 @@ export default function AdminPanel({
   };
 
   const handleDeleteStage = (stg: JourneyStage) => {
-    if (window.confirm(`آیا از حذف مرحله «${stg.title}» مطمئن هستید؟`)) {
-      if (setStages) {
-        setStages(prev => prev.filter(s => s.id !== stg.id));
-        triggerAlert(`مرحله «${stg.title}» حذف گردید.`);
+    confirmInternal(`آیا از حذف مرحله «${stg.title}» مطمئن هستید؟`, {
+      title: 'تأیید حذف مرحله',
+      confirmText: 'حذف مرحله',
+      onConfirm: () => {
+        if (setStages) {
+          setStages(prev => prev.filter(s => s.id !== stg.id));
+          triggerAlert(`مرحله «${stg.title}» حذف گردید.`);
+        }
       }
-    }
+    });
   };
 
   const handleSaveDailyChallenge = (e: React.FormEvent) => {
@@ -1074,11 +1098,15 @@ export default function AdminPanel({
   };
 
   const handleDeleteUser = (user: User) => {
-    if (window.confirm(`آیا از حذف کامل کاربر/رزمنده «${user.first_name} ${user.last_name}» با کد اختصاصی ${user.personal_code} اطمینان دارید؟`)) {
-      const updatedList = users.filter(u => u.id !== user.id);
-      setUsers(updatedList);
-      triggerAlert(`کاربر «${user.first_name} ${user.last_name}» با موفقیت حذف گردید.`);
-    }
+    confirmInternal(`آیا از حذف کامل کاربر/رزمنده «${user.first_name} ${user.last_name}» با کد اختصاصی ${user.personal_code} اطمینان دارید؟`, {
+      title: 'تأیید حذف کاربر',
+      confirmText: 'حذف کاربر',
+      onConfirm: () => {
+        const updatedList = users.filter(u => u.id !== user.id);
+        setUsers(updatedList);
+        triggerAlert(`کاربر «${user.first_name} ${user.last_name}» با موفقیت حذف گردید.`);
+      }
+    });
   };
 
   // MISSION CRUD & EDIT STATES
@@ -1433,11 +1461,15 @@ export default function AdminPanel({
 
   // ADMIN DELETE TICKET
   const handleAdminDeleteTicket = (ticketId: string) => {
-    if (window.confirm('آیا از حذف این تیکت اطمینان دارید؟')) {
-      setTickets(prev => prev.filter(t => t.id !== ticketId));
-      setReplies(prev => prev.filter(r => r.ticket_id !== ticketId));
-      triggerAlert('تیکت با موفقیت حذف گردید.');
-    }
+    confirmInternal('آیا از حذف این تیکت اطمینان دارید؟', {
+      title: 'تأیید حذف تیکت',
+      confirmText: 'حذف تیکت',
+      onConfirm: () => {
+        setTickets(prev => prev.filter(t => t.id !== ticketId));
+        setReplies(prev => prev.filter(r => r.ticket_id !== ticketId));
+        triggerAlert('تیکت با موفقیت حذف گردید.');
+      }
+    });
   };
 
   // MISSION CRUD HANDLERS
@@ -1510,10 +1542,14 @@ export default function AdminPanel({
   };
 
   const handleDeleteMission = (m: Mission) => {
-    if (window.confirm(`آیا از حذف مأموریت «${m.title}» اطمینان دارید؟`)) {
-      setMissions(prev => prev.filter(x => x.id !== m.id));
-      triggerAlert(`مأموریت «${m.title}» با موفقیت حذف گردید.`);
-    }
+    confirmInternal(`آیا از حذف مأموریت «${m.title}» اطمینان دارید؟`, {
+      title: 'تأیید حذف مأموریت',
+      confirmText: 'حذف مأموریت',
+      onConfirm: () => {
+        setMissions(prev => prev.filter(x => x.id !== m.id));
+        triggerAlert(`مأموریت «${m.title}» با موفقیت حذف گردید.`);
+      }
+    });
   };
 
   const handleToggleMissionActive = (m: Mission) => {
@@ -1593,10 +1629,14 @@ export default function AdminPanel({
   };
 
   const handleDeleteTraining = (t: Training) => {
-    if (window.confirm(`آیا از حذف دوره آموزشی «${t.title}» اطمینان دارید؟`)) {
-      setTrainings(prev => prev.filter(x => x.id !== t.id));
-      triggerAlert(`دوره آموزشی «${t.title}» با موفقیت حذف گردید.`);
-    }
+    confirmInternal(`آیا از حذف دوره آموزشی «${t.title}» اطمینان دارید؟`, {
+      title: 'تأیید حذف دوره آموزشی',
+      confirmText: 'حذف دوره',
+      onConfirm: () => {
+        setTrainings(prev => prev.filter(x => x.id !== t.id));
+        triggerAlert(`دوره آموزشی «${t.title}» با موفقیت حذف گردید.`);
+      }
+    });
   };
 
   const handleToggleTrainingActive = (t: Training) => {
@@ -2123,7 +2163,7 @@ export default function AdminPanel({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-300">
                       <span className="truncate max-w-[240px] sm:max-w-xs">فایل ارسالی: <strong className="text-rose-400 font-mono">{sub.file_name}</strong> <span className="text-slate-400">({sub.file_size})</span></span>
                       <button 
-                        onClick={() => alert(`دانلود فایل ${sub.file_name} شبیه‌سازی شد.`)}
+                        onClick={() => showInternalToast(`دانلود فایل ${sub.file_name} شبیه‌سازی شد.`, 'دانلود فایل')}
                         className="bg-slate-900 hover:bg-slate-800 text-cyan-300 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-cyan-500/30 flex items-center justify-center gap-1.5 transition shrink-0"
                       >
                         <Download size={13} />
@@ -4991,6 +5031,73 @@ export default function AdminPanel({
       {/* 9. REAL-TIME PUSH NOTIFICATIONS & BROADCAST STUDIO */}
       {activeAdminTab === 'notifications' && (
         <div className="space-y-6">
+          <div className="rounded-2xl border border-cyan-500/30 bg-[#09121f] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-cyan-300">مدیریت و بازبینی تمامی چت‌های گروهی</h3>
+                <p className="text-[11px] text-slate-400">ادمین می‌تواند همه پیام‌ها را ببیند، پیام‌های خاص را حذف کند و وضعیت تعامل گروه‌ها را بررسی کند.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatAuditRows(listAllGroupChats())}
+                className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold text-cyan-200"
+              >
+                تازه‌سازی لیست چت
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {chatAuditRows.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-700 p-4 text-center text-[11px] text-slate-400">
+                  هنوز هیچ اتاق چت گروهی ایجاد نشده است.
+                </div>
+              ) : (
+                chatAuditRows.map((entry) => (
+                  <div key={entry.room.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-black text-white">{entry.room.name}</div>
+                        <div className="text-[10px] text-slate-400">گروه: {entry.room.group_id} · اعضا: {entry.room.member_ids.length}</div>
+                      </div>
+                      <div className="text-[10px] text-amber-300">{entry.messages.length} پیام</div>
+                    </div>
+                    <div className="space-y-2">
+                      {entry.messages.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-700 p-2 text-[11px] text-slate-500">پیام جدیدی ثبت نشده است.</div>
+                      ) : (
+                        entry.messages.slice(-5).map((msg) => (
+                          <div key={msg.id} className="rounded-xl border border-slate-800 bg-slate-900 p-2.5">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-cyan-300">{msg.user_name}</span>
+                              <span className="text-[9px] text-slate-500">{new Date(msg.created_at).toLocaleString('fa-IR')}</span>
+                            </div>
+                            <p className="text-[11px] leading-6 text-slate-200">{msg.text}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const roomId = entry.room.id;
+                          const lastMessageId = entry.messages.at(-1)?.id;
+                          if (!lastMessageId) return;
+                          deleteGroupChatMessage(roomId, lastMessageId);
+                          setChatAuditRows(listAllGroupChats());
+                          triggerAlert('آخرین پیام این گروه توسط ادمین حذف شد.');
+                        }}
+                        className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] font-bold text-rose-200"
+                      >
+                        حذف آخرین پیام
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           
           {/* Studio Header Banner */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-950/70 via-slate-900 to-amber-950/60 border border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)] flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -182,10 +182,13 @@ export default function ElementorVisualEditorModal({
   };
 
   const handleResetToDefault = () => {
-    if (window.confirm('آیا از بازنشانی چیدمان به حالت اولیه مطمئن هستید؟')) {
-      setBlocks(JSON.parse(JSON.stringify(defaultHomeBlocks)));
-      showToast('چیدمان به حالت پیش‌فرض المنتور بازگشت');
-    }
+    confirmInternal('آیا از بازنشانی چیدمان به حالت اولیه مطمئن هستید؟', {
+      title: 'بازنشانی چیدمان',
+      onConfirm: () => {
+        setBlocks(JSON.parse(JSON.stringify(defaultHomeBlocks)));
+        showToast('چیدمان به حالت پیش‌فرض المنتور بازگشت');
+      }
+    });
   };
 
   const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);

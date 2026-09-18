@@ -101,6 +101,8 @@ import NotificationCenterModal from './components/NotificationCenterModal';
 import LiveNotificationToast from './components/LiveNotificationToast';
 import OnboardingCommanderTutorial from './components/OnboardingCommanderTutorial';
 import RadarLoading from './components/RadarLoading';
+import GroupChatPanel from './components/GroupChatPanel';
+import InternalDialogHost from './components/InternalDialogHost';
 
 // Only AdminPanel kept lazy as an internal administrative tool
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
@@ -301,12 +303,9 @@ export default function App() {
     (vitrinCommentsMap[c.postId] = vitrinCommentsMap[c.postId] || []).push(c);
   });
 
-  // صحت‌سنجی زنده اتصال به Supabase و پاک‌سازی قطعی هرگونه داده‌ی localStorage
+  // صحت‌سنجی زنده اتصال به Supabase بدون پاک‌کردن داده‌های نشست و حالت‌ها
   useEffect(() => {
     checkSupabaseHealth();
-    try {
-      localStorage.clear();
-    } catch {}
   }, []);
 
   // 🛡️ بررسی سلامت بک‌اند امن و پایش وضعیت آن
@@ -676,6 +675,8 @@ export default function App() {
         <LoadingScreen onComplete={() => setIsLoading(false)} isGirls={isGirlsTheme} />
       )}
 
+      <InternalDialogHost />
+
       {/* Background Epic Music Toggle */}
       <BackgroundMusic />
 
@@ -902,6 +903,10 @@ export default function App() {
               setIsAdminView={setIsAdminMode}
               campaignTheme={campaignTheme}
             />
+
+            {currentUser && currentUser.group_id && (
+              <GroupChatPanel currentUser={currentUser} users={users} />
+            )}
 
             {/* Main Content Body */}
             <main className={`flex-1 w-full mx-auto ${

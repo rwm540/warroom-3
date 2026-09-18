@@ -30,6 +30,9 @@ export interface User {
   level?: number;
   points?: number;
   completed_stages?: string[];
+  shared_username?: string;
+  shared_password?: string;
+  is_group_member?: boolean;
 }
 
 export interface Group {
@@ -44,6 +47,46 @@ export interface Group {
   registration_code: string; // کد ثبت‌نام جوخه
   created_at: string;
   points?: number;
+  shared_username?: string;
+  shared_password?: string;
+  max_members?: number;
+  member_ids?: string[];
+  status?: 'pending' | 'active' | 'complete';
+}
+
+export interface GroupChatRoom {
+  id: string;
+  group_id: string;
+  name: string;
+  member_ids: string[];
+  created_at: string;
+  updated_at: string;
+  unread_count?: number;
+}
+
+export interface GroupChatMessage {
+  id: string;
+  room_id: string;
+  group_id: string;
+  user_id: string;
+  user_name: string;
+  avatar_url?: string;
+  text: string;
+  created_at: string;
+  is_system?: boolean;
+}
+
+export interface TeamRegistrationSession {
+  id: string;
+  group_id: string;
+  team_name: string;
+  leader_id: string;
+  shared_username: string;
+  shared_password: string;
+  max_members: number;
+  active_session_count: number;
+  created_at: string;
+  status: 'pending' | 'active' | 'completed';
 }
 
 export interface Mission {
