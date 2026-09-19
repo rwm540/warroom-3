@@ -33,7 +33,8 @@ import {
   CheckCircle,
   Headphones,
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  WalletCards
 } from 'lucide-react';
 import { User, Group, Mission, MissionSubmission, Announcement, News, Medal, UserMedal, SupportTicket, SupportReply, JourneyStage } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
@@ -208,6 +209,17 @@ export default function DashboardView({
 
   return (
     <div className={`space-y-4 md:space-y-5 dir-rtl pb-16 font-sans max-w-7xl mx-auto w-full px-2 sm:px-4 overflow-y-auto scroll-smooth ${isGirl ? 'girl-theme' : 'boy-theme'}`}>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+        <div>
+          <h2 className="text-sm font-black text-white">مرکز عملیات کاربر</h2>
+          <p className="mt-1 text-[10px] text-slate-500">دسترسی سریع به ارتباطات جوخه و امتیازها</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onNavigate('Chat')} className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-bold text-cyan-300"><MessageSquare size={15} /> چت روم</button>
+          <button type="button" onClick={() => onNavigate('Wallet')} className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300"><WalletCards size={15} /> تراکنش‌ها و پرداختی‌ها</button>
+        </div>
+      </div>
       
       {/* 2. STANDARDIZED SQUARE METRIC CARDS (مربع‌های آماری استاندارد ۴ گانه در وب و اندروید) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

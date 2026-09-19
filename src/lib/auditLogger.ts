@@ -2,6 +2,7 @@ import { isSupabaseEnabled, supabase } from './supabaseClient';
 
 const AUDIT_STORAGE_KEY = 'warroom_audit_log_buffer_v1';
 const MAX_LOCAL_EVENTS = 500;
+const SERVER_LOG_ENDPOINT = '/api/log';
 
 export type AuditLevel = 'info' | 'warning' | 'error' | 'security';
 
@@ -20,6 +21,14 @@ export interface AuditEvent {
 }
 
 const SENSITIVE_KEYS = /password|pass|token|secret|api[_-]?key|authorization|cookie|service[_-]?role/i;
+
+export function shouldRecordAuditEvent(input: Pick<AuditEvent, 'event' | 'level'>): boolean {
+  const eventName = input.event.toLowerCase();
+  const isAuthEvent = /(^|[._-])(auth|login|logout|register|registration|password_reset)([._-]|$)/.test(eventName);
+  const isRequestEvent = /(^|[._-])(request|submission|ticket|join|merge|transfer|payment)([._-]|$)/.test(eventName);
+  const isErrorEvent = input.level === 'error' || input.level === 'warning';
+  return isAuthEvent || isRequestEvent || isErrorEvent;
+}
 
 function sanitize(value: unknown, depth = 0): unknown {
   if (depth > 4) return '[truncated]';
@@ -51,6 +60,20 @@ function writeLocalEvent(event: AuditEvent): void {
   }
 }
 
+function forwardEventToServer(event: AuditEvent): void {
+  if (typeof window === 'undefined' || typeof fetch !== 'function') return;
+
+  void fetch(SERVER_LOG_ENDPOINT, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event),
+    keepalive: true,
+  }).catch(() => {
+    // The server endpoint is optional in local Vite-only development.
+  });
+}
+
 export async function logAudit(input: Omit<AuditEvent, 'id' | 'createdAt'>): Promise<AuditEvent> {
   const event: AuditEvent = {
     ...input,
@@ -59,7 +82,10 @@ export async function logAudit(input: Omit<AuditEvent, 'id' | 'createdAt'>): Pro
     metadata: input.metadata ? sanitize(input.metadata) as Record<string, unknown> : undefined,
   };
 
+  if (!shouldRecordAuditEvent(event)) return event;
+
   writeLocalEvent(event);
+  forwardEventToServer(event);
 
   if (isSupabaseEnabled && supabase) {
     try {

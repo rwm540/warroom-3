@@ -26,7 +26,9 @@ import {
   Radio, 
   Trophy,
   Gift,
-  Grid
+  Grid,
+  WalletCards,
+  MessageCircle
 } from 'lucide-react';
 import { User } from '../types';
 import { formatToPersianDigits } from '../utils/jalali';
@@ -105,6 +107,11 @@ export default function Navbar({
       onOpenNotifications();
       return;
     }
+    if (tab === 'Chat' && typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsMobileMoreOpen(false);
+      window.dispatchEvent(new CustomEvent('warroom_open_chat_modal'));
+      return;
+    }
     setIsAdminView(isAdmin);
     setCurrentTab(tab);
     setIsMobileMoreOpen(false);
@@ -115,6 +122,7 @@ export default function Navbar({
     { id: 'Journey', label: 'نقشه مراحل بازی', icon: Gamepad2 },
     { id: 'Rewards', label: 'جوایز و امتیازات', icon: Gift },
     { id: 'Vitrin', label: 'ویترین و آثار', icon: Grid },
+    ...(currentUser?.role === 'admin' ? [] : [{ id: 'Wallet', label: 'تراکنش‌ها و پرداختی‌ها', icon: WalletCards }]),
   ];
 
   // Android Mobile Bottom Navigation (Core 3 tabs)
@@ -126,6 +134,12 @@ export default function Navbar({
 
   // Items shown inside the Mobile Android Bottom Sheet (More ...)
   const mobileSheetItems = [
+    {
+      id: 'Chat',
+      label: 'چت روم جوخه',
+      desc: 'گفت‌وگو با اعضای جوخه و نیروهای زیرمجموعه',
+      icon: MessageCircle,
+    },
     { 
       id: 'Notifications', 
       label: 'مرکز پیام‌ها و اعلانات ستاد', 
@@ -165,28 +179,28 @@ export default function Navbar({
           
           {/* Brand Logo & Title */}
           <div 
-            className="flex items-center gap-2.5 sm:gap-3 shrink-0 group select-none transition-transform hover:scale-[1.02]"
-          >
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl p-[1.5px] transition-shadow ${
-              isGirls
-                ? 'bg-gradient-to-br from-fuchsia-400 via-pink-500 to-purple-600 shadow-[0_0_12px_rgba(255,19,137,0.5)] group-hover:shadow-[0_0_18px_rgba(255,19,137,0.8)]'
-                : 'bg-gradient-to-br from-blue-500 via-indigo-600 to-red-600 shadow-[0_0_12px_rgba(37,99,235,0.5)] group-hover:shadow-[0_0_18px_rgba(37,99,235,0.8)]'
-            }`}>
-              <div className={`w-full h-full rounded-[11px] flex items-center justify-center font-bold ${
-                isGirls ? 'bg-[#1a0229] text-fuchsia-400 group-hover:text-pink-300' : 'bg-[#060c22] text-blue-400 group-hover:text-blue-300'
-              }`}>
-                <ShieldAlert size={18} className="animate-pulse" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className={`font-black text-xs sm:text-sm md:text-base text-white tracking-tight transition-colors ${
-                  isGirls ? 'group-hover:text-fuchsia-300' : 'group-hover:text-blue-300'
-                }`}>اتاق جنگ</h1>
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium hidden md:block">سامانه ارزیابی، مسابقه و آموزش‌های استراتژیک دانش‌آموزی</p>
-            </div>
-          </div>
+  className="flex items-center gap-2.5 sm:gap-3 shrink-0 group select-none transition-transform hover:scale-[1.02]"
+>
+  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden">
+    <img
+      src="/src/assets/images/warroom_logo_1787906676836.jpg"
+      alt="لوگو"
+      className="w-full h-full object-contain"
+    />
+  </div>
+
+  <div>
+    <div className="flex items-center gap-1.5">
+      <h1 className="font-black text-xs sm:text-sm md:text-base text-white tracking-tight">
+        اتاق جنگ
+      </h1>
+    </div>
+
+    <p className="text-[10px] text-slate-400 font-medium hidden md:block">
+      سامانه ارزیابی، مسابقه و آموزش‌های استراتژیک دانش‌آموزی
+    </p>
+  </div>
+</div>
 
           {/* Actions Bar: User Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -255,6 +269,15 @@ export default function Navbar({
                 >
                   <SlidersHorizontal size={15} />
                   <span>داوری و مدیریت ستاد</span>
+                </button>
+              )}
+              {currentUser.role !== 'admin' && currentUser.group_id && (
+                <button
+                  onClick={onOpenSquadModal}
+                  className="flex items-center gap-1.5 rounded-xl border border-red-800/60 bg-red-950/40 px-3.5 py-1.5 text-xs font-black text-red-300 transition hover:bg-red-900/50"
+                >
+                  <Users size={15} />
+                  <span>مدیریت و ایجاد نیروی جوخه</span>
                 </button>
               )}
             </nav>

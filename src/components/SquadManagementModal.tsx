@@ -13,10 +13,11 @@ import {
   IdCard,
   Calendar
 } from 'lucide-react';
-import { User, Group, GroupJoinRequest } from '../types';
+import { Group, GroupJoinRequest, SquadRank, User } from '../types';
 import { confirmInternal } from '../lib/appDialog';
 import { validateNationalCode, validatePhoneNumber, validateJalaliDate, generatePersonalCode } from '../utils/jalali';
 import { apiCheckNationalCodeExists } from '../lib/backendApi';
+import { isSupabaseEnabled, saveUserProgressToSupabase, sha256Hex } from '../lib/supabaseData';
 import PersianDatePicker from './PersianDatePicker';
 
 interface SquadManagementModalProps {
@@ -66,7 +67,9 @@ export default function SquadManagementModal({
     national_code: '',
     phone: '',
     grade: currentUser.grade || 'یازدهم',
-    birth_date: '1386/05/15'
+    birth_date: '1386/05/15',
+    password: '',
+    squad_rank: 'soldier' as SquadRank
   });
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -91,11 +94,20 @@ export default function SquadManagementModal({
     if (!isLeader || request.target_group_id !== currentUser.group_id) return;
     setGroupJoinRequests(prev => prev.map(item => item.id === request.id ? { ...item, status, resolved_at: new Date().toISOString(), resolved_by: currentUser.id } : item));
     if (status === 'accepted') {
-      const requester = users.find(user => user.id === request.requester_id);
-      if (requester && squadMembers.length < (userGroup?.max_members || 4)) {
-        setUsers(prev => prev.map(user => user.id === requester.id ? { ...user, group_id: currentUser.group_id } : user));
-        setGroups(prev => prev.map(group => group.id === currentUser.group_id ? { ...group, members_count: Math.min(group.max_members || 4, group.members_count + 1), member_ids: Array.from(new Set([...(group.member_ids || []), requester.id])) } : group));
-        triggerAlert(`درخواست «${request.requester_name}» پذیرفته شد و به گروه اضافه شد.`);
+      const sourceGroupId = request.source_group_id;
+      const sourceGroup = groups.find(group => group.id === sourceGroupId);
+      const sourceMembers = users.filter(user => user.group_id === sourceGroupId);
+      if (sourceGroupId && sourceGroup && userGroup) {
+        setUsers(prev => prev.map(user => user.group_id === sourceGroupId ? { ...user, group_id: userGroup.id, squad_rank: user.id === sourceGroup.leader_id ? 'jokhedar' : (user.squad_rank || 'soldier') } : user));
+        setGroups(prev => prev.map(group => {
+          if (group.id === userGroup.id) {
+            const memberIds = Array.from(new Set([...(group.member_ids || []), ...sourceMembers.map(member => member.id)]));
+            return { ...group, members_count: memberIds.length, member_ids: memberIds };
+          }
+          if (group.id === sourceGroupId) return { ...group, members_count: 0, member_ids: [], parent_group_id: userGroup.id, status: 'merged' };
+          return group;
+        }));
+        triggerAlert(`جوخه «${sourceGroup.name}» زیرمجموعه جوخه «${userGroup.name}» شد و اعضا به اتاق مشترک منتقل شدند.`);
       }
     } else {
       triggerAlert(`درخواست «${request.requester_name}» رد شد.`);
@@ -137,9 +149,23 @@ export default function SquadManagementModal({
 
     if (editingUserId) {
       // Edit existing member
-      setUsers(prev => prev.map(u => 
-        u.id === editingUserId ? { ...u, ...memberForm } : u
-      ));
+      const existingMember = users.find(user => user.id === editingUserId);
+      if (!existingMember) {
+        setErrorMsg('حساب نیروی انتخاب‌شده پیدا نشد.');
+        return;
+      }
+      const updatedMember: User = {
+        ...existingMember,
+        ...memberForm,
+        password: memberForm.password ? await sha256Hex(memberForm.password) : existingMember.password,
+        role: memberForm.squad_rank === 'commander' ? 'leader' : memberForm.squad_rank === 'soldier' ? 'member' : 'user'
+      };
+      setUsers(prev => prev.map(user => user.id === editingUserId ? updatedMember : user));
+      const updateSaved = await saveUserProgressToSupabase(updatedMember);
+      if (isSupabaseEnabled && !updateSaved) {
+        setErrorMsg('ذخیره حساب نیرو در پایگاه داده انجام نشد. اتصال سامانه را بررسی کنید.');
+        return;
+      }
       triggerAlert(`اطلاعات رزمنده "${memberForm.first_name} ${memberForm.last_name}" به‌روزرسانی شد.`);
       setEditingUserId(null);
     } else {
@@ -155,8 +181,8 @@ export default function SquadManagementModal({
         last_name: memberForm.last_name,
         national_code: memberForm.national_code,
         phone: memberForm.phone,
-        password: currentUser.password,
-        role: 'member',
+        password: await sha256Hex(memberForm.password),
+        role: memberForm.squad_rank === 'commander' ? 'leader' : memberForm.squad_rank === 'soldier' ? 'member' : 'user',
         education_level: currentUser.education_level,
         grade: memberForm.grade,
         gender: currentUser.gender,
@@ -165,10 +191,17 @@ export default function SquadManagementModal({
         birth_date: memberForm.birth_date,
         school_name: currentUser.school_name,
         personal_code: generatePersonalCode(),
-        group_id: currentUser.group_id
+        group_id: currentUser.group_id,
+        squad_rank: memberForm.squad_rank
       };
 
       setUsers(prev => [...prev, newMember]);
+      const accountSaved = await saveUserProgressToSupabase(newMember);
+      if (isSupabaseEnabled && !accountSaved) {
+        setErrorMsg('حساب نیرو در پایگاه داده ذخیره نشد و قابل ورود نیست. دوباره تلاش کنید.');
+        setUsers(prev => prev.filter(user => user.id !== newMember.id));
+        return;
+      }
       
       // Update group members count
       if (userGroup) {
@@ -186,7 +219,9 @@ export default function SquadManagementModal({
       national_code: '',
       phone: '',
       grade: currentUser.grade || 'یازدهم',
-      birth_date: '1386/05/15'
+      birth_date: '1386/05/15',
+      password: '',
+      squad_rank: 'soldier'
     });
     setShowAddForm(false);
   };
@@ -221,7 +256,9 @@ export default function SquadManagementModal({
       national_code: member.national_code,
       phone: member.phone,
       grade: member.grade,
-      birth_date: member.birth_date
+      birth_date: member.birth_date,
+      password: '',
+      squad_rank: member.squad_rank || (member.role === 'leader' ? 'commander' : 'soldier')
     });
     setShowAddForm(true);
   };
@@ -261,7 +298,7 @@ export default function SquadManagementModal({
           <span className="text-slate-300">
             تعداد اعضای فعلی: <span className="text-red-400 font-mono text-sm">{squadMembers.length}</span> از حداکثر ۶ نفر
           </span>
-          {squadMembers.length < 6 && (
+          {isLeader && squadMembers.length < 6 && (
             <button
               onClick={() => {
                 setEditingUserId(null);
@@ -364,6 +401,33 @@ export default function SquadManagementModal({
                   isGirls={currentUser.gender === 'دختر'}
                   required
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">رمز عبور:</label>
+                <input
+                  type="password"
+                  value={memberForm.password}
+                  onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                  required={!editingUserId}
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">درجه جوخه:</label>
+                <select
+                  value={memberForm.squad_rank}
+                  onChange={(e) => setMemberForm({ ...memberForm, squad_rank: e.target.value as SquadRank })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                >
+                  <option value="soldier">سرباز</option>
+                  <option value="farmando">فرمانرو</option>
+                  <option value="jokhedar">جوخه‌دار</option>
+                  <option value="commander">فرمانده</option>
+                </select>
               </div>
             </div>
 

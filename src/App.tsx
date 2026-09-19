@@ -24,6 +24,8 @@ import {
   PaymentSettings,
   PaymentTransaction,
   GroupJoinRequest
+  ,WalletTransaction,
+  PointTransfer
 } from './types';
 import { initialJourneyStages, initialDailyChallengeConfig } from './data/initialStages';
 
@@ -106,6 +108,7 @@ import OnboardingCommanderTutorial from './components/OnboardingCommanderTutoria
 import RadarLoading from './components/RadarLoading';
 import GroupChatPanel from './components/GroupChatPanel';
 import InternalDialogHost from './components/InternalDialogHost';
+import WalletTransfersView from './components/WalletTransfersView';
 
 // Only AdminPanel kept lazy as an internal administrative tool
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
@@ -374,6 +377,9 @@ export default function App() {
     initial: []
   });
 
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
+  const [pointTransfers, setPointTransfers] = useState<PointTransfer[]>([]);
+
   // 🎁 مدیریت سیستم جوایز و کریستال‌ها — همگام با Supabase
   const [prizes, setPrizes] = useSyncedCollection<PrizeItem>({
     storageKey: 'warroom_prizes_list',
@@ -436,6 +442,18 @@ export default function App() {
       const serverUser: User | undefined = res.ok && res.data?.authenticated ? (res.data.user as User) : undefined;
 
       if (!serverUser) {
+        try {
+          const storedUser = localStorage.getItem('warroom_current_user_data');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser) as User | null;
+            if (parsed?.id) {
+              routeAuthenticatedUser(parsed);
+              return;
+            }
+          }
+        } catch {
+          // Fall through to the signed-out route when the stored session is invalid.
+        }
         setCurrentUser(null);
         setIsAdminMode(false);
         setMustChangePassword(false);
@@ -629,6 +647,10 @@ export default function App() {
   };
 
   const handleTabChange = (tab: string) => {
+    if (tab === 'Chat' && typeof window !== 'undefined') {
+      if (window.innerWidth < 768) setShowMobileChatRoom(true);
+      return;
+    }
     setShowAuthScreen(false);
     setShowGamePortal(false);
     setIsAdminMode(tab === 'Admin');
@@ -636,10 +658,25 @@ export default function App() {
     setModalActiveCount(0);
   };
   const [showSquadModal, setShowSquadModal] = useState<boolean>(false);
+  const [showMobileChatRoom, setShowMobileChatRoom] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [alertNotification, setAlertNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    const openSquad = () => setShowSquadModal(true);
+    const openNotifications = () => setShowNotificationCenter(true);
+    const openChat = () => setShowMobileChatRoom(true);
+    window.addEventListener('warroom_open_squad_modal', openSquad);
+    window.addEventListener('warroom_open_notifications', openNotifications);
+    window.addEventListener('warroom_open_chat_modal', openChat);
+    return () => {
+      window.removeEventListener('warroom_open_squad_modal', openSquad);
+      window.removeEventListener('warroom_open_notifications', openNotifications);
+      window.removeEventListener('warroom_open_chat_modal', openChat);
+    };
+  }, []);
 
   // Eligibility checker for real-time notifications
   const isEligibleForNotification = (notif: AppNotification, user: User | null) => {
@@ -1065,7 +1102,7 @@ export default function App() {
               campaignTheme={campaignTheme}
             />
 
-            {currentUser && currentUser.group_id && currentUser.role !== 'admin' && !isAdminMode && (
+            {currentUser && (currentUser.group_id || users.some(user => user.id === currentUser.id && user.group_id)) && currentUser.role !== 'admin' && !isAdminMode && (
               <GroupChatPanel
                 currentUser={currentUser}
                 users={users}
@@ -1074,6 +1111,7 @@ export default function App() {
                 groups={groups}
                 groupJoinRequests={groupJoinRequests}
                 setGroupJoinRequests={setGroupJoinRequests}
+                onOpenSquadModal={() => setShowSquadModal(true)}
               />
             )}
 
@@ -1246,6 +1284,19 @@ export default function App() {
                       />
                     )}
 
+                    {activeTab === 'Wallet' && currentUser && (
+                      <WalletTransfersView
+                        currentUser={currentUser}
+                        users={users}
+                        setUsers={setUsers}
+                        transactions={walletTransactions}
+                        setTransactions={setWalletTransactions}
+                        transfers={pointTransfers}
+                        setTransfers={setPointTransfers}
+                        triggerAlert={triggerAlert}
+                      />
+                    )}
+
                     {activeTab === 'Missions' && (
                       <MissionsView 
                         currentUser={currentUser!}
@@ -1321,6 +1372,46 @@ export default function App() {
                 onNavigateTab={(tab) => handleTabChange(tab)}
               />
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMobileChatRoom && currentUser && (currentUser.group_id || users.some(user => user.id === currentUser.id && user.group_id)) && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowMobileChatRoom(false)}
+          >
+            <motion.div
+              className="relative h-[min(78vh,620px)] w-full max-w-lg overflow-hidden rounded-3xl border border-cyan-400/40 bg-[#071126] shadow-[0_0_45px_rgba(34,211,238,0.28)]"
+              initial={{ opacity: 0, y: 28, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 28, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={event => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowMobileChatRoom(false)}
+                className="absolute left-3 top-3 z-20 rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-bold text-slate-300"
+              >
+                بستن
+              </button>
+              <GroupChatPanel
+                currentUser={currentUser}
+                users={users}
+                setUsers={setUsers}
+                setGroups={setGroups}
+                groups={groups}
+                groupJoinRequests={groupJoinRequests}
+                setGroupJoinRequests={setGroupJoinRequests}
+                onOpenSquadModal={() => setShowSquadModal(true)}
+                mobileMode
+              />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

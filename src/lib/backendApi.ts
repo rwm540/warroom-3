@@ -443,8 +443,6 @@ export async function apiSession(): Promise<
     const valid = await validateSessionToken(savedSessionId);
     if (!valid) {
       localStorage.removeItem('warroom_session_id');
-      localStorage.removeItem('warroom_current_user_data');
-      localStorage.removeItem('warroom_current_user_id');
       activeSession = null;
       return { ok: true, data: { authenticated: false } };
     }
@@ -549,9 +547,22 @@ export async function requestPasswordReset(input: {
         updated_at: new Date().toISOString(),
       });
     } catch (err: any) {
+      void logAudit({
+        event: 'request.password_reset_failed',
+        level: 'error',
+        source: 'client',
+        metadata: { code: 'SUPABASE_WRITE_FAILED' },
+      });
       console.warn('[WarRoom Supabase] ثبت درخواست بازیابی در Supabase ناموفق بود:', err);
     }
   }
+
+  void logAudit({
+    event: 'request.password_reset_submitted',
+    level: 'security',
+    source: 'client',
+    metadata: { status: record.status },
+  });
 
   return {
     ok: true,

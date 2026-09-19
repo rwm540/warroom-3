@@ -1,4 +1,6 @@
 export type RoleType = 'admin' | 'leader' | 'user' | 'member';
+export type SquadRank = 'soldier' | 'farmando' | 'jokhedar' | 'commander';
+export type WalletTransactionType = 'payment' | 'deposit' | 'withdrawal' | 'reward' | 'transfer_in' | 'transfer_out' | 'adjustment';
 export type EducationLevel = 'ابتدایی' | 'متوسطه اول' | 'متوسطه دوم';
 export type Gender = 'پسر' | 'دختر';
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
@@ -65,6 +67,7 @@ export interface User {
   shared_username?: string;
   shared_password?: string;
   is_group_member?: boolean;
+  squad_rank?: SquadRank;
 }
 
 export interface Group {
@@ -83,7 +86,32 @@ export interface Group {
   shared_password?: string;
   max_members?: number;
   member_ids?: string[];
-  status?: 'pending' | 'active' | 'complete';
+  parent_group_id?: string;
+  status?: 'pending' | 'active' | 'complete' | 'merged';
+}
+
+export interface WalletTransaction {
+  id: string;
+  user_id: string;
+  group_id?: string;
+  transaction_type: WalletTransactionType;
+  amount: number;
+  currency: 'points' | 'IRR' | 'IRT';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  reference_id?: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface PointTransfer {
+  id: string;
+  sender_user_id: string;
+  receiver_user_id: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  note?: string;
+  created_at: string;
+  completed_at?: string;
 }
 
 export type GroupJoinRequestStatus = 'pending' | 'accepted' | 'rejected';

@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  Home,
   Gamepad2, 
   Gift, 
-  LayoutDashboard, 
   Grid,
-  SlidersHorizontal
+  SlidersHorizontal,
+  MessageCircle,
+  WalletCards,
+  MoreHorizontal,
+  Users,
+  X
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -28,20 +31,32 @@ export default function BottomNavigation({
   campaignTheme
 }: BottomNavigationProps) {
   const isGirls = campaignTheme === 'girls' || currentUser?.gender === 'دختر';
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
 
-  // Android Mobile Navigation Tabs (ویژه پنل کاربری و پنل ستاد مدیریت)
-  const items = [
-    { id: 'Dashboard', label: 'پیشخوان', icon: LayoutDashboard, isAdmin: false },
+  const primaryItems = [
     { id: 'Journey', label: 'نقشه بازی', icon: Gamepad2, isAdmin: false },
     { id: 'Rewards', label: 'جوایز', icon: Gift, isAdmin: false },
     { id: 'Vitrin', label: 'ویترین', icon: Grid, isAdmin: false },
-    ...(currentUser?.role === 'admin' ? [
-      { id: 'Admin', label: 'ستاد', icon: SlidersHorizontal, isAdmin: true }
-    ] : [])
+  ];
+
+  const secondaryItems = [
+    { id: 'Chat', label: 'چت روم', icon: MessageCircle },
+    ...(currentUser?.role === 'admin' ? [] : [{ id: 'Wallet', label: 'تراکنش‌ها', icon: WalletCards }]),
+    ...(currentUser?.group_id ? [{ id: 'Squad', label: 'مدیریت جوخه', icon: Users }] : []),
+    ...(currentUser?.role === 'admin' ? [{ id: 'Admin', label: 'ستاد', icon: SlidersHorizontal }] : [])
   ];
 
   const handleSelectTab = (item: { id: string; isAdmin?: boolean }) => {
-    if (item.isAdmin) {
+    setIsMoreOpen(false);
+    if (item.id === 'Chat') {
+      window.dispatchEvent(new CustomEvent('warroom_open_chat_modal'));
+      return;
+    }
+    if (item.id === 'Squad') {
+      window.dispatchEvent(new CustomEvent('warroom_open_squad_modal'));
+      return;
+    }
+    if (item.isAdmin || item.id === 'Admin') {
       if (setIsAdminMode) {
         setIsAdminMode(true);
       }
@@ -64,19 +79,32 @@ export default function BottomNavigation({
       }`}
       id="android-bottom-navigation"
     >
-      <div className={`grid ${items.length === 5 ? 'grid-cols-5' : items.length === 4 ? 'grid-cols-4' : 'grid-cols-3'} items-center justify-items-center relative gap-0.5`}>
-        {items.map((item) => {
+      {isMoreOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: 14, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 14, scale: 0.96 }}
+          className="absolute bottom-[calc(100%+10px)] left-1/2 z-50 grid w-[min(92vw,340px)] -translate-x-1/2 grid-cols-3 gap-2 rounded-2xl border border-cyan-500/30 bg-[#071126]/95 p-3 shadow-[0_0_35px_rgba(34,211,238,0.25)] backdrop-blur-xl"
+        >
+          {secondaryItems.map(item => {
+            const Icon = item.icon;
+            const active = item.id === 'Admin' ? Boolean(isAdminMode || activeTab === 'Admin') : activeTab === item.id && !isAdminMode;
+            return <motion.button type="button" key={item.id} whileTap={{ scale: 0.9 }} onClick={() => handleSelectTab(item)} className={`flex flex-col items-center gap-1 rounded-xl border p-2 text-[10px] font-bold ${active ? 'border-cyan-400/60 bg-cyan-400/15 text-cyan-200' : 'border-slate-700 bg-slate-900/80 text-slate-300'}`}><Icon size={18} /><span>{item.label}</span></motion.button>;
+          })}
+          <button type="button" onClick={() => setIsMoreOpen(false)} className="col-span-3 flex items-center justify-center gap-1 rounded-xl border border-slate-700 py-1.5 text-[10px] text-slate-400"><X size={14} /> بستن</button>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-4 items-center justify-items-center relative gap-0.5">
+        {primaryItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.isAdmin 
-            ? Boolean(isAdminMode || activeTab === 'Admin') 
-            : item.id === 'Dashboard'
-              ? (!isAdminMode && (activeTab === 'Dashboard' || activeTab === 'Missions' || activeTab === 'Trainings' || activeTab === 'Profile'))
-              : item.id === 'Rewards'
-                ? (!isAdminMode && (activeTab === 'Rewards' || activeTab === 'Prizes' || activeTab === 'RewardsLeaderboard' || activeTab === 'Leaderboard'))
-                : (activeTab === item.id && !isAdminMode);
+          const isActive = item.id === 'Rewards'
+            ? (!isAdminMode && (activeTab === 'Rewards' || activeTab === 'Prizes' || activeTab === 'RewardsLeaderboard' || activeTab === 'Leaderboard'))
+            : activeTab === item.id && !isAdminMode;
 
           return (
             <motion.button
+              type="button"
               key={item.id}
               whileTap={{ scale: 0.88 }}
               onClick={() => handleSelectTab(item)}
@@ -152,6 +180,7 @@ export default function BottomNavigation({
             </motion.button>
           );
         })}
+        <motion.button type="button" whileTap={{ scale: 0.88 }} onClick={() => setIsMoreOpen(value => !value)} aria-label="بیشتر" title="بیشتر" className={`relative flex w-full flex-col items-center justify-center rounded-2xl py-1.5 text-[9.5px] font-bold ${isMoreOpen ? 'text-cyan-200' : 'text-slate-400'}`}><MoreHorizontal size={20} /><span className="mt-1">بیشتر</span></motion.button>
       </div>
     </nav>
   );

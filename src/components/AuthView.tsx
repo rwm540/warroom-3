@@ -333,7 +333,7 @@ export default function AuthView({
       province: 'تهران',
       city: 'تهران'
     });
-    const leaderUser: User = { ...serverUser, group_id: group.id, is_group_member: false };
+    const leaderUser: User = { ...serverUser, group_id: group.id, is_group_member: false, squad_rank: 'commander' };
     setGroups(prev => [...prev.filter(item => item.id !== group.id), group]);
     setUsers(prev => [...prev.filter(u => u.id !== leaderUser.id), leaderUser]);
     lockTheme();

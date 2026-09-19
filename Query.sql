@@ -55,6 +55,68 @@ create table if not exists public.warroom_groups (
   updated_at timestamptz not null default now()
 );
 
+-- ثبت نیروی جوخه با چهار درجه: سرباز، فرمانرو، جوخه‌دار و فرمانده.
+-- رمز عبور فقط به‌صورت هش‌شده ذخیره می‌شود؛ فرمانده همان سازنده جوخه است.
+create table if not exists public.warroom_squad_enlistments (
+  id                  text primary key,
+  squad_id            text not null,
+  created_by_user_id   text not null,
+  target_user_id       text,
+  national_code        text not null,
+  mobile               text not null,
+  password_hash        text not null,
+  rank_code            text not null default 'soldier'
+    check (rank_code in ('soldier', 'farmando', 'jokhedar', 'commander')),
+  status               text not null default 'active'
+    check (status in ('pending', 'active', 'suspended', 'revoked')),
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now()
+);
+
+-- نگاشت سلسله‌مراتب جوخه‌ها؛ با پذیرش ادغام، target زیرمجموعه source می‌شود.
+create table if not exists public.warroom_squad_hierarchy (
+  child_squad_id       text primary key,
+  parent_squad_id      text not null,
+  merge_request_id     text,
+  status               text not null default 'active'
+    check (status in ('active', 'suspended')),
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  check (child_squad_id <> parent_squad_id)
+);
+
+-- دفتر تراکنش‌های مالی/امتیازی برای نمایش بخش «تراکنش‌ها و پرداختی‌ها».
+create table if not exists public.warroom_wallet_transactions (
+  id                  text primary key,
+  user_id             text not null,
+  group_id            text,
+  transaction_type    text not null
+    check (transaction_type in ('payment', 'deposit', 'withdrawal', 'reward', 'transfer_in', 'transfer_out', 'adjustment')),
+  amount              bigint not null check (amount > 0),
+  currency            text not null default 'points'
+    check (currency in ('points', 'IRR', 'IRT')),
+  status              text not null default 'completed'
+    check (status in ('pending', 'completed', 'failed', 'cancelled')),
+  reference_id        text,
+  description         text,
+  metadata            jsonb not null default '{}'::jsonb,
+  created_at          timestamptz not null default now()
+);
+
+-- انتقال امتیاز بین دو کاربر با شناسه کاربری و ثبت immutable دفترکل.
+create table if not exists public.warroom_point_transfers (
+  id                  text primary key,
+  sender_user_id      text not null,
+  receiver_user_id    text not null,
+  amount              bigint not null check (amount > 0),
+  status              text not null default 'completed'
+    check (status in ('pending', 'completed', 'failed', 'cancelled')),
+  note                text,
+  created_at          timestamptz not null default now(),
+  completed_at        timestamptz,
+  check (sender_user_id <> receiver_user_id)
+);
+
 -- اتاق‌های چت گروهی
 create table if not exists public.warroom_group_chat_rooms (
   id         text primary key,
@@ -224,6 +286,21 @@ create table if not exists public.warroom_group_join_requests (
   updated_at timestamptz not null default now()
 );
 
+-- درخواست تفکیک/ادغام جوخه‌ها؛ با پذیرش، جوخه مقصد زیرمجموعه جوخه درخواست‌دهنده می‌شود.
+create table if not exists public.warroom_squad_merge_requests (
+  id                  text primary key,
+  source_squad_id     text not null,
+  target_squad_id     text not null,
+  requested_by_user_id text not null,
+  status              text not null default 'pending'
+    check (status in ('pending', 'accepted', 'rejected', 'cancelled')),
+  note                text,
+  created_at          timestamptz not null default now(),
+  resolved_at         timestamptz,
+  resolved_by_user_id text,
+  check (source_squad_id <> target_squad_id)
+);
+
 -- ============================================================================
 --  🛡️  جدول‌های امنیتی (فقط برای بک‌اند سرور با کلید service_role)
 --      RLS فعال است و هیچ سیاستی برای anon/authenticated ساخته نمی‌شود.
@@ -285,6 +362,198 @@ begin
 end;
 $$;
 
+-- موجودی امتیاز از دفترکل محاسبه می‌شود و ستون قابل‌دست‌کاری جداگانه ندارد.
+create or replace function public.warroom_point_balance(p_user_id text)
+returns bigint
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(
+    case
+      when transaction_type in ('deposit', 'reward', 'transfer_in', 'adjustment') then amount
+      when transaction_type in ('withdrawal', 'transfer_out') then -amount
+      else 0
+    end
+  ), 0)::bigint
+  from public.warroom_wallet_transactions
+  where user_id = p_user_id and currency = 'points' and status = 'completed';
+$$;
+
+-- ثبت نیروی جوخه: احراز اطلاعات اصلی باید در API انجام شود و password_hash هرگز plaintext نیست.
+create or replace function public.warroom_register_squad_member(
+  p_id text,
+  p_squad_id text,
+  p_created_by_user_id text,
+  p_target_user_id text,
+  p_national_code text,
+  p_mobile text,
+  p_password_hash text,
+  p_rank_code text default 'soldier'
+)
+returns public.warroom_squad_enlistments
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result public.warroom_squad_enlistments;
+begin
+  if p_password_hash is null or length(trim(p_password_hash)) < 32 then
+    raise exception 'password_hash_required';
+  end if;
+  if p_rank_code not in ('soldier', 'farmando', 'jokhedar', 'commander') then
+    raise exception 'invalid_rank_code';
+  end if;
+  insert into public.warroom_squad_enlistments
+    (id, squad_id, created_by_user_id, target_user_id, national_code, mobile, password_hash, rank_code)
+  values
+    (p_id, p_squad_id, p_created_by_user_id, nullif(p_target_user_id, ''), p_national_code, p_mobile, p_password_hash, p_rank_code)
+  returning * into result;
+  return result;
+end;
+$$;
+
+-- انتقال امتیاز اتمیک: ابتدا موجودی بررسی، سپس دو رکورد دفترکل و یک رکورد انتقال ثبت می‌شود.
+create or replace function public.warroom_transfer_points(
+  p_transfer_id text,
+  p_sender_user_id text,
+  p_receiver_user_id text,
+  p_amount bigint,
+  p_note text default null
+)
+returns public.warroom_point_transfers
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result public.warroom_point_transfers;
+  sender_balance bigint;
+begin
+  if p_sender_user_id is null or p_receiver_user_id is null or p_sender_user_id = p_receiver_user_id then
+    raise exception 'invalid_transfer_parties';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'invalid_transfer_amount';
+  end if;
+  sender_balance := public.warroom_point_balance(p_sender_user_id);
+  if sender_balance < p_amount then
+    raise exception 'insufficient_points';
+  end if;
+
+  insert into public.warroom_point_transfers
+    (id, sender_user_id, receiver_user_id, amount, status, note, completed_at)
+  values
+    (p_transfer_id, p_sender_user_id, p_receiver_user_id, p_amount, 'completed', p_note, now());
+
+  insert into public.warroom_wallet_transactions
+    (id, user_id, transaction_type, amount, currency, status, reference_id, description)
+  values
+    ('wallet_out_' || p_transfer_id, p_sender_user_id, 'transfer_out', p_amount, 'points', 'completed', p_transfer_id, p_note),
+    ('wallet_in_' || p_transfer_id, p_receiver_user_id, 'transfer_in', p_amount, 'points', 'completed', p_transfer_id, p_note);
+
+  select * into result from public.warroom_point_transfers where id = p_transfer_id;
+  return result;
+exception
+  when unique_violation then
+    raise exception 'transfer_id_already_exists';
+end;
+$$;
+
+-- پذیرش تفکیک: target زیرمجموعه source می‌شود و اعضای target برای چت مشترک به source منتقل می‌شوند.
+create or replace function public.warroom_accept_squad_merge(
+  p_request_id text,
+  p_resolved_by_user_id text
+)
+returns public.warroom_squad_merge_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  request_row public.warroom_squad_merge_requests;
+begin
+  select * into request_row
+  from public.warroom_squad_merge_requests
+  where id = p_request_id and status = 'pending'
+  for update;
+  if not found then raise exception 'merge_request_not_pending'; end if;
+
+  insert into public.warroom_squad_hierarchy (child_squad_id, parent_squad_id, merge_request_id)
+  values (request_row.target_squad_id, request_row.source_squad_id, request_row.id)
+  on conflict (child_squad_id) do update
+    set parent_squad_id = excluded.parent_squad_id,
+        merge_request_id = excluded.merge_request_id,
+        status = 'active',
+        updated_at = now();
+
+  update public.warroom_users
+  set data = jsonb_set(data, '{group_id}', to_jsonb(request_row.source_squad_id), true), updated_at = now()
+  where data->>'group_id' = request_row.target_squad_id;
+
+  -- اعضای هر دو جوخه در اتاق والد قابل مشاهده و گفتگو خواهند بود.
+  update public.warroom_group_chat_rooms parent_room
+  set data = jsonb_set(
+    parent_room.data,
+    '{member_ids}',
+    (
+      select coalesce(jsonb_agg(distinct member_id), '[]'::jsonb)
+      from jsonb_array_elements_text(
+        coalesce(parent_room.data->'member_ids', '[]'::jsonb) || coalesce(child_room.data->'member_ids', '[]'::jsonb)
+      ) as members(member_id)
+    ),
+    true
+  ), updated_at = now()
+  from public.warroom_group_chat_rooms child_room
+  where parent_room.data->>'group_id' = request_row.source_squad_id
+    and child_room.data->>'group_id' = request_row.target_squad_id;
+
+  update public.warroom_squad_merge_requests
+  set status = 'accepted', resolved_at = now(), resolved_by_user_id = p_resolved_by_user_id
+  where id = request_row.id
+  returning * into request_row;
+  return request_row;
+end;
+$$;
+
+-- برای منوی همبرگری چت: ۵ مورد در هر صفحه، حداکثر ۱۰ مورد برای بار اول، و جست‌وجوی نام جوخه.
+create or replace function public.warroom_list_chat_rooms(
+  p_search text default null,
+  p_page integer default 0,
+  p_page_size integer default 5
+)
+returns table (room_id text, room_data jsonb, total_count bigint)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with filtered as (
+    select id, data, count(*) over () as total_count
+    from public.warroom_group_chat_rooms
+    where nullif(trim(p_search), '') is null
+       or lower(coalesce(data->>'name', '')) like '%' || lower(trim(p_search)) || '%'
+       or lower(coalesce(data->>'group_id', '')) like '%' || lower(trim(p_search)) || '%'
+    order by updated_at desc
+    limit least(greatest(coalesce(p_page_size, 5), 1), 10)
+    offset greatest(coalesce(p_page, 0), 0) * least(greatest(coalesce(p_page_size, 5), 1), 10)
+  )
+  select id, data, total_count from filtered;
+$$;
+
+revoke execute on function public.warroom_point_balance(text) from public, anon, authenticated;
+revoke execute on function public.warroom_register_squad_member(text, text, text, text, text, text, text, text) from public, anon, authenticated;
+revoke execute on function public.warroom_transfer_points(text, text, text, bigint, text) from public, anon, authenticated;
+revoke execute on function public.warroom_accept_squad_merge(text, text) from public, anon, authenticated;
+revoke execute on function public.warroom_list_chat_rooms(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.warroom_point_balance(text) to service_role;
+grant execute on function public.warroom_register_squad_member(text, text, text, text, text, text, text, text) to service_role;
+grant execute on function public.warroom_transfer_points(text, text, text, bigint, text) to service_role;
+grant execute on function public.warroom_accept_squad_merge(text, text) to service_role;
+grant execute on function public.warroom_list_chat_rooms(text, integer, integer) to service_role;
+
 -- حذف آبشاری گروهی: اگر سرگروه حذف شد، گروه و داده‌های وابسته‌اش نیز حذف می‌شوند.
 -- حذف عضو عادی به این trigger وارد نمی‌شود و گروه را نگه می‌دارد.
 create or replace function public.warroom_delete_owned_group_after_user_delete()
@@ -335,7 +604,9 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests','warroom_payment_transactions','warroom_team_registration_sessions','warroom_group_join_requests','warroom_session_log','warroom_credentials','warroom_sessions',
+    'warroom_password_reset_requests','warroom_payment_transactions','warroom_team_registration_sessions','warroom_group_join_requests',
+    'warroom_squad_enlistments','warroom_squad_hierarchy','warroom_wallet_transactions','warroom_point_transfers','warroom_squad_merge_requests',
+    'warroom_session_log','warroom_credentials','warroom_sessions',
     'warroom_password_resets','warroom_audit_log','warroom_security_kv'
   ]
   loop
@@ -376,6 +647,15 @@ create index if not exists idx_warroom_team_session_status   on public.warroom_t
 create index if not exists idx_warroom_join_target           on public.warroom_group_join_requests ((data->>'target_group_id'));
 create index if not exists idx_warroom_join_requester        on public.warroom_group_join_requests ((data->>'requester_id'));
 create index if not exists idx_warroom_join_status           on public.warroom_group_join_requests ((data->>'status'));
+create index if not exists idx_warroom_enlistments_squad     on public.warroom_squad_enlistments (squad_id, status);
+create index if not exists idx_warroom_enlistments_national  on public.warroom_squad_enlistments (national_code);
+create index if not exists idx_warroom_enlistments_mobile    on public.warroom_squad_enlistments (mobile);
+create index if not exists idx_warroom_hierarchy_parent      on public.warroom_squad_hierarchy (parent_squad_id);
+create index if not exists idx_warroom_wallet_user_created   on public.warroom_wallet_transactions (user_id, created_at desc);
+create index if not exists idx_warroom_wallet_reference     on public.warroom_wallet_transactions (reference_id);
+create index if not exists idx_warroom_transfers_sender     on public.warroom_point_transfers (sender_user_id, created_at desc);
+create index if not exists idx_warroom_transfers_receiver   on public.warroom_point_transfers (receiver_user_id, created_at desc);
+create index if not exists idx_warroom_merge_status         on public.warroom_squad_merge_requests (status, created_at desc);
 
 -- 🆕 قاعده «فقط یک ادمین»: ایندکس یکتای شرطی باعث می‌شود در کل دیتابیس
 --    فقط یک کاربر با role='admin' وجود داشته باشد (افزودن ادمین دوم خطا می‌دهد).
@@ -417,6 +697,11 @@ alter table public.warroom_payment_transactions enable row level security;
 alter table public.warroom_team_registration_sessions enable row level security;
 alter table public.warroom_group_join_requests enable row level security;
 alter table public.warroom_session_log enable row level security;
+alter table public.warroom_squad_enlistments enable row level security;
+alter table public.warroom_squad_hierarchy enable row level security;
+alter table public.warroom_wallet_transactions enable row level security;
+alter table public.warroom_point_transfers enable row level security;
+alter table public.warroom_squad_merge_requests enable row level security;
 
 -- 🛡️ جدول‌های حساس: RLS فعال + «بدون سیاست» → هیچ دسترسی عمومی (anon/authenticated)
 --    فقط کلید service_role (صرفاً روی سرور) می‌تواند بخواند/بنویسد.
@@ -447,7 +732,8 @@ begin
     'warroom_support_tickets','warroom_support_replies','warroom_announcements',
     'warroom_news','warroom_notifications','warroom_home_announcements','warroom_faqs',
     'warroom_vitrin_posts','warroom_vitrin_comments','warroom_game_portals','warroom_kv',
-    'warroom_password_reset_requests','warroom_payment_transactions','warroom_group_join_requests'
+    'warroom_password_reset_requests','warroom_payment_transactions','warroom_group_join_requests',
+    'warroom_squad_enlistments','warroom_squad_hierarchy','warroom_wallet_transactions','warroom_point_transfers','warroom_squad_merge_requests'
   ]
   loop
     execute format('drop policy if exists "warroom_public_access" on public.%I', t);
@@ -475,6 +761,13 @@ grant insert on public.warroom_audit_log to anon, authenticated;
 revoke all on public.warroom_security_kv     from anon, authenticated;
 revoke all on public.warroom_session_log     from anon, authenticated;
 revoke all on public.warroom_team_registration_sessions from anon, authenticated;
+
+-- انتقال امتیاز فقط از مسیر تابع اتمیک و سمت سرور انجام شود.
+revoke all on public.warroom_point_transfers from anon, authenticated;
+revoke all on public.warroom_wallet_transactions from anon, authenticated;
+revoke all on public.warroom_squad_enlistments from anon, authenticated;
+revoke all on public.warroom_squad_hierarchy from anon, authenticated;
+revoke all on public.warroom_squad_merge_requests from anon, authenticated;
 
 -- ----------------------------------------------------------------------------
 -- ۶) داده اولیه: پروفایل «مدیر ارشد عملیات» (ادمین پیش‌فرض)
