@@ -183,7 +183,7 @@ export default function Navbar({
 >
   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden">
     <img
-      src="/src/assets/images/warroom_logo_1787906676836.jpg"
+      src="src/assets/images/warroom_logo_1787906676836.jpg"
       alt="لوگو"
       className="w-full h-full object-contain"
     />
