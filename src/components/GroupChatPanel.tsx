@@ -1,16 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, GripVertical, MessageCircle, Pencil, Send, ShieldCheck, Trash2, Users, X } from 'lucide-react';
-import { Group, User } from '../types';
+import { Check, GripVertical, Menu, MessageCircle, Pencil, Search, Send, ShieldCheck, Trash2, Users, X } from 'lucide-react';
+import { Group, GroupJoinRequest, User } from '../types';
 import { appendGroupChatMessage, deleteGroupChatMessage, editGroupChatMessage, ensureGroupChatRoom, getGroupChatStats, listGroupChatMessages, subscribeGroupChat } from '../lib/groupChatService';
 
 interface GroupChatPanelProps {
   currentUser: User | null;
   users: User[];
+  setUsers?: React.Dispatch<React.SetStateAction<User[]>>;
+  setGroups?: React.Dispatch<React.SetStateAction<Group[]>>;
   groups?: Group[];
+  groupJoinRequests?: GroupJoinRequest[];
+  setGroupJoinRequests?: React.Dispatch<React.SetStateAction<GroupJoinRequest[]>>;
   isAdminMode?: boolean;
 }
 
-export default function GroupChatPanel({ currentUser, users, groups = [], isAdminMode = false }: GroupChatPanelProps) {
+export default function GroupChatPanel({ currentUser, users, setUsers, setGroups, groups = [], groupJoinRequests = [], setGroupJoinRequests, isAdminMode = false }: GroupChatPanelProps) {
   const isAdminUser = currentUser?.role === 'admin';
   const adminGroupOptions = useMemo(
     () => groups.filter(group => Boolean(group?.id)).map(group => ({ id: group.id, name: group.name })),
@@ -55,7 +59,12 @@ export default function GroupChatPanel({ currentUser, users, groups = [], isAdmi
   const [draft, setDraft] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
+  const [groupSearch, setGroupSearch] = useState('');
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(() => {
+    if (typeof window === 'undefined') return { left: 20, top: 110 };
+    return { left: Math.max(16, window.innerWidth - 388), top: 110 };
+  });
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 360, height: 470 });
   const interactionState = useRef<{
     type: 'drag' | 'resize';
@@ -76,7 +85,35 @@ export default function GroupChatPanel({ currentUser, users, groups = [], isAdmi
   }, [room]);
 
   const stats = room ? getGroupChatStats(effectiveGroupId, users) : { totalMessages: 0, activeMembers: 0, engagementScore: 0 };
+  const currentGroup = groups.find(group => group.id === currentUser?.group_id);
+  const pendingIncoming = groupJoinRequests.filter(request => request.target_group_id === currentUser?.group_id && request.status === 'pending');
+  const visibleGroups = groups.filter(group => group.id !== currentUser?.group_id && group.name.toLowerCase().includes(groupSearch.trim().toLowerCase()));
 
+  const sendGroupRequest = (targetGroup: Group) => {
+    if (!currentUser || !setGroupJoinRequests || groupJoinRequests.some(request => request.requester_id === currentUser.id && request.target_group_id === targetGroup.id && request.status === 'pending')) return;
+    setGroupJoinRequests(prev => [{
+      id: `join_${currentUser.id}_${targetGroup.id}_${Date.now()}`,
+      source_group_id: currentUser.group_id,
+      target_group_id: targetGroup.id,
+      requester_id: currentUser.id,
+      requester_name: `${currentUser.first_name} ${currentUser.last_name}`,
+      target_group_name: targetGroup.name,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    }, ...prev]);
+  };
+
+  const resolveGroupRequest = (request: GroupJoinRequest, status: 'accepted' | 'rejected') => {
+    if (!currentUser || !setGroupJoinRequests || request.target_group_id !== currentUser.group_id || currentGroup?.leader_id !== currentUser.id) return;
+    setGroupJoinRequests(prev => prev.map(item => item.id === request.id ? { ...item, status, resolved_at: new Date().toISOString(), resolved_by: currentUser.id } : item));
+    if (status === 'accepted' && setUsers && setGroups) {
+      const requester = users.find(user => user.id === request.requester_id);
+      if (requester && (currentGroup.members_count || 0) < (currentGroup.max_members || 4)) {
+        setUsers(prev => prev.map(user => user.id === requester.id ? { ...user, group_id: currentGroup.id } : user));
+        setGroups(prev => prev.map(group => group.id === currentGroup.id ? { ...group, members_count: group.members_count + 1, member_ids: Array.from(new Set([...(group.member_ids || []), requester.id])) } : group));
+      }
+    }
+  };
   if (!currentUser || !effectiveGroupId || !room) return null;
 
   const sendMessage = (event: React.FormEvent) => {
@@ -182,7 +219,17 @@ export default function GroupChatPanel({ currentUser, users, groups = [], isAdmi
   }, []);
 
   return (
-    <div className={`${position ? 'fixed' : 'fixed bottom-24 left-3 sm:left-6'} z-40 overflow-visible rounded-[22px] border border-cyan-500/30 bg-[#070d1f]/90 backdrop-blur-2xl shadow-[0_0_35px_rgba(34,211,238,0.18)]`} style={{ ...(position ? { left: position.left, top: position.top } : {}), width: `min(${size.width}px, 92vw)`, height: size.height }}>
+    <div
+      className="fixed z-40 overflow-hidden rounded-[22px] border border-cyan-500/30 bg-[#070d1f]/90 backdrop-blur-2xl shadow-[0_0_35px_rgba(34,211,238,0.18)]"
+      style={{
+        left: position ? position.left : 20,
+        top: position ? position.top : 110,
+        width: `min(${size.width}px, calc(100vw - 24px))`,
+        height: `min(${size.height}px, calc(100vh - 120px))`,
+        maxWidth: 'calc(100vw - 24px)',
+        maxHeight: 'calc(100vh - 120px)',
+      }}
+    >
       <div onPointerDown={startDragging} className="flex h-14 cursor-grab touch-none items-center justify-between overflow-hidden rounded-t-[22px] border-b border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent px-3 py-2.5 active:cursor-grabbing">
         <div className="flex items-center gap-2 min-w-0">
           <GripVertical size={15} className="shrink-0 text-cyan-400/70" aria-label="جابجایی چت" />
@@ -195,6 +242,7 @@ export default function GroupChatPanel({ currentUser, users, groups = [], isAdmi
           </div>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-slate-300">
+          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setIsGroupMenuOpen(value => !value)} className="rounded-lg p-1.5 text-cyan-300 hover:bg-cyan-500/15" title="پیدا کردن جوخه‌ها" aria-label="پیدا کردن جوخه‌ها"><Menu size={17} /></button>
           <div className="flex items-center gap-1 rounded-full border border-cyan-500/20 bg-slate-900/70 px-1.5 py-0.5">
             <Users size={11} /> {stats.activeMembers}
           </div>
@@ -203,6 +251,15 @@ export default function GroupChatPanel({ currentUser, users, groups = [], isAdmi
           </div>
         </div>
       </div>
+
+      {isGroupMenuOpen && (
+        <div onPointerDown={event => event.stopPropagation()} className="absolute right-2 top-14 z-50 w-[calc(100%-16px)] rounded-2xl border border-cyan-500/30 bg-[#080f24] p-3 shadow-2xl" dir="rtl">
+          <div className="mb-2 flex items-center justify-between"><span className="text-xs font-black text-white">جوخه‌ها و درخواست ارتباط</span><button type="button" onClick={() => setIsGroupMenuOpen(false)} className="text-slate-400"><X size={15} /></button></div>
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-2"><Search size={14} className="text-slate-500" /><input value={groupSearch} onChange={event => setGroupSearch(event.target.value)} placeholder="جست‌وجوی نام جوخه..." className="w-full bg-transparent py-2 text-[11px] text-white outline-none" /></div>
+          {pendingIncoming.length > 0 && <div className="mb-2 space-y-1 rounded-xl border border-amber-500/20 bg-amber-500/5 p-2"><div className="text-[10px] font-black text-amber-300">درخواست‌های ورودی</div>{pendingIncoming.map(request => <div key={request.id} className="flex items-center justify-between gap-2 text-[10px] text-slate-200"><span>{request.requester_name}</span><span className="flex gap-1"><button type="button" onClick={() => resolveGroupRequest(request, 'accepted')} className="rounded bg-emerald-600 p-1 text-white"><Check size={11} /></button><button type="button" onClick={() => resolveGroupRequest(request, 'rejected')} className="rounded bg-rose-700 p-1 text-white"><X size={11} /></button></span></div>)}</div>}
+          <div className="max-h-36 space-y-1 overflow-y-auto">{visibleGroups.length === 0 ? <p className="py-3 text-center text-[10px] text-slate-500">جوخه‌ای پیدا نشد.</p> : visibleGroups.map(group => { const pending = groupJoinRequests.some(request => request.requester_id === currentUser.id && request.target_group_id === group.id && request.status === 'pending'); const full = (group.members_count || 0) >= (group.max_members || 4); return <div key={group.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/70 p-2"><div><div className="text-[11px] font-bold text-white">{group.name}</div><div className="text-[9px] text-slate-500">{group.members_count}/{group.max_members || 4} عضو</div></div><button type="button" disabled={pending || full} onClick={() => sendGroupRequest(group)} className="rounded-lg bg-cyan-500/15 px-2 py-1 text-[9px] font-bold text-cyan-300 disabled:opacity-40">{full ? 'تکمیل' : pending ? 'درخواست شد' : 'درخواست'}</button></div>; })}</div>
+        </div>
+      )}
 
       {isAdminMode && adminGroupOptions.length > 0 && (
         <div className="border-b border-slate-800 bg-slate-950/80 px-3 py-2">

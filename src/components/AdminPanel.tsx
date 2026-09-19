@@ -141,6 +141,7 @@ interface AdminPanelProps {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   groups: Group[];
+  setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
   missions: Mission[];
   setMissions: React.Dispatch<React.SetStateAction<Mission[]>>;
   submissions: MissionSubmission[];
@@ -198,6 +199,7 @@ export default function AdminPanel({
   users,
   setUsers,
   groups,
+  setGroups,
   missions,
   setMissions,
   submissions,
@@ -1107,8 +1109,18 @@ export default function AdminPanel({
       title: 'تأیید حذف کاربر',
       confirmText: 'حذف کاربر',
       onConfirm: () => {
-        const updatedList = users.filter(u => u.id !== user.id);
+        const ownedGroupIds = groups
+          .filter(group => group.leader_id === user.id)
+          .map(group => group.id);
+        const updatedList = users
+          .filter(u => u.id !== user.id)
+          .map(u => ownedGroupIds.includes(u.group_id || '')
+            ? { ...u, group_id: undefined, is_group_member: false }
+            : u);
         setUsers(updatedList);
+        if (ownedGroupIds.length > 0) {
+          setGroups(prev => prev.filter(group => !ownedGroupIds.includes(group.id)));
+        }
         triggerAlert(`کاربر «${user.first_name} ${user.last_name}» با موفقیت حذف گردید.`);
       }
     });
@@ -2016,6 +2028,7 @@ export default function AdminPanel({
               ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black'
               : 'bg-[#080d21] text-slate-400 border-slate-800 hover:text-white'
           }`}
+          id="btn-tab-chat-control"
         >
           <MessageSquare size={15} />
           <span>کنترل چت‌ها</span>

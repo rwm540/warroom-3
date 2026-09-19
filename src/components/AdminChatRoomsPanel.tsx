@@ -30,9 +30,20 @@ export default function AdminChatRoomsPanel({ currentUser, groups, users }: Admi
 
   const selectedGroup = groupOptions.find(group => group.id === selectedGroupId) || null;
   const memberIds = users.filter(user => user.group_id === selectedGroupId).map(user => user.id);
-  const room = selectedGroup
-    ? ensureGroupChatRoom(selectedGroup.id, selectedGroup.name, memberIds)
-    : null;
+  const [room, setRoom] = useState<ReturnType<typeof ensureGroupChatRoom> | null>(null);
+
+  useEffect(() => {
+    if (!selectedGroup) {
+      setRoom(null);
+      return;
+    }
+    try {
+      setRoom(ensureGroupChatRoom(selectedGroup.id, selectedGroup.name, memberIds));
+    } catch (error) {
+      console.warn('[WarRoom Admin Chat] ایجاد روم ناموفق بود:', error);
+      setRoom(null);
+    }
+  }, [selectedGroup?.id, selectedGroup?.name, memberIds.join(',')]);
 
   useEffect(() => {
     if (!room) {

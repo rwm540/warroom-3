@@ -1066,7 +1066,15 @@ export default function App() {
             />
 
             {currentUser && currentUser.group_id && currentUser.role !== 'admin' && !isAdminMode && (
-              <GroupChatPanel currentUser={currentUser} users={users} groups={groups} />
+              <GroupChatPanel
+                currentUser={currentUser}
+                users={users}
+                setUsers={setUsers}
+                setGroups={setGroups}
+                groups={groups}
+                groupJoinRequests={groupJoinRequests}
+                setGroupJoinRequests={setGroupJoinRequests}
+              />
             )}
 
             {/* Main Content Body */}
@@ -1083,6 +1091,7 @@ export default function App() {
                       users={users}
                       setUsers={setUsers}
                       groups={groups}
+                      setGroups={setGroups}
                       missions={missions}
                       setMissions={setMissions}
                       submissions={submissions}
