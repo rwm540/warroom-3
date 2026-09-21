@@ -27,3 +27,6 @@
 {"id":"audit_1789828008221_y6idy3","event":"auth.login_success","level":"security","source":"client","actorId":"user_1789826194128_xcskg0","actorRole":"leader","route":"/","createdAt":"2026-09-19T14:26:48.221Z","receivedAt":"2026-09-19T14:26:48.225Z"}
 {"id":"audit_1789828444159_eop881","event":"auth.logout","level":"security","source":"client","route":"/","createdAt":"2026-09-19T14:34:04.159Z","receivedAt":"2026-09-19T14:34:04.158Z"}
 {"id":"audit_1789828453390_5jj0ig","event":"auth.login_success","level":"security","source":"client","actorId":"user_1789826194128_xcskg0","actorRole":"leader","route":"/","createdAt":"2026-09-19T14:34:13.390Z","receivedAt":"2026-09-19T14:34:13.404Z"}
+{"id":"audit_1789831798244_44bruy","event":"auth.logout","level":"security","source":"client","route":"/","createdAt":"2026-09-19T15:29:58.244Z","receivedAt":"2026-09-19T15:29:58.307Z"}
+{"id":"audit_1789831935764_bdt1mf","event":"auth.login_database_error","level":"error","source":"client","route":"/","metadata":{"code":""},"createdAt":"2026-09-19T15:32:15.764Z","receivedAt":"2026-09-19T15:32:15.774Z"}
+{"id":"audit_1789831935767_ch5juf","event":"auth.login_database_error","level":"error","source":"client","route":"/","metadata":{"code":""},"createdAt":"2026-09-19T15:32:15.767Z","receivedAt":"2026-09-19T15:32:15.775Z"}
